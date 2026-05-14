@@ -16,10 +16,8 @@
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- SweetAlert2 -->
+    <!-- SweetAlert2 + Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
-    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <!-- Tailwind Configuration -->
@@ -58,9 +56,9 @@
         ::-webkit-scrollbar-thumb:hover { background: #c084fc; }
         .dark ::-webkit-scrollbar-thumb { background: #6b21a8; }
         
-        /* Smooth transitions */
-        body, div, p, h1, h2, h3, h4, span, a, button, input, select {
-            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+        /* จำกัด transition เฉพาะองค์ประกอบที่ต้องการ — ไม่ครอบทุก div เพื่อลดงานของเบราว์เซอร์ */
+        button, input, select, aside, header, .glass-panel, .nav-btn {
+            transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
         }
 
         .glass-panel {
@@ -184,7 +182,7 @@
                         <p class="text-brand-100 font-light relative z-10">กรอกข้อมูลสถานที่และค่าไฟฟ้า เพื่อหาจุดคุ้มทุนที่ดีที่สุด</p>
                     </div>
                     
-                    <form id="calcForm" class="p-6 md:p-8 space-y-8" onsubmit="event.preventDefault(); simulateCalculation();">
+                    <form id="calcForm" class="p-6 md:p-8 space-y-8">
                         
                         <!-- ชื่อสถานที่ -->
                         <div class="space-y-3">
@@ -341,7 +339,7 @@
                             <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">ข้อมูลถูกบันทึกไว้ในระบบจำลอง</p>
                         </div>
                         <div class="relative w-full sm:w-64">
-                            <input type="text" placeholder="ค้นหาสถานที่..." class="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500 outline-none transition-colors">
+                            <input type="text" id="historySearchInput" placeholder="ค้นหาสถานที่..." autocomplete="off" class="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-brand-500 outline-none transition-colors">
                             <i class="fa-solid fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
                         </div>
                     </div>
@@ -371,8 +369,42 @@
 
     <!-- Scripts -->
     <script>
-        const API_URL = 'https://script.google.com/macros/s/AKfycbxhjoMOkKROo4zsfqU9v1DL5_-cOiV2w-bzawRukMT7aHjMx1YNLQ3--rirkB-ZO1ww/exec';
-        // State Management - ข้อมูลจำลอง (Mock Data)
+        const CONFIG = {
+            API_URL: 'https://script.google.com/macros/s/AKfycbxhjoMOkKROo4zsfqU9v1DL5_-cOiV2w-bzawRukMT7aHjMx1YNLQ3--rirkB-ZO1ww/exec',
+            COST_PER_UNIT: 4.5,
+            DAYS_IN_MONTH: 30,
+            SUN_HOURS: 4,
+            PRICE_PER_KWP: 30000,
+            AREA_PER_KWP: 6,
+            CHART_LABEL_MAX: 15,
+            PANEL_SHARE: 0.40,
+            INVERTER_SHARE: 0.25,
+            INSTALL_SHARE: 0.35,
+        };
+
+        const TAB_IDS = ['dashboard', 'calculator', 'history'];
+        const tabEls = {};
+        const navEls = {};
+        const ui = {};
+
+        let historySearchQuery = '';
+        let historyFilterRaf = 0;
+        let billInputRaf = 0;
+
+        function escapeHtml(str) {
+            if (str == null) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function swalTheme() {
+            const dark = document.documentElement.classList.contains('dark');
+            return { background: dark ? '#1f2937' : '#fff', color: dark ? '#fff' : '#374151' };
+        }
+
         let historyData = [
             {
                 date: "14/05/2569", 
@@ -425,171 +457,6 @@
         let roofCount = 1;
         let myChartInstance = null;
 
-        // Init App
-        window.addEventListener('DOMContentLoaded', async () => {
-            // --- เพิ่ม SweetAlert Loading ตอนดึงข้อมูล ---
-            Swal.fire({
-                title: 'กำลังโหลดข้อมูล...',
-                html: 'กรุณารอสักครู่',
-                allowOutsideClick: false,
-                showConfirmButton: false,
-                background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
-                color: document.documentElement.classList.contains('dark') ? '#fff' : '#374151',
-                didOpen: () => {
-                    Swal.showLoading();
-                }
-            });
-
-            // 1. ดึงข้อมูลจริงจาก Google Sheets
-            try {
-                const response = await fetch(API_URL);
-                const realData = await response.json();
-                if (realData && realData.length > 0) {
-                    historyData = realData.reverse(); // นำข้อมูลจริงมาแทนที่ข้อมูลจำลอง
-                }
-            } catch (err) {
-                console.log("Using mock data because:", err);
-            }
-            
-            updateHistoryTable();
-            
-            // --- ปิด SweetAlert เมื่อโหลดเสร็จ ---
-            Swal.close();
-
-            // Notification click
-            document.getElementById('notiBtn').addEventListener('click', () => {
-                Swal.fire({
-                    title: 'ไม่มีการแจ้งเตือนใหม่',
-                    icon: 'info',
-                    toast: true,
-                    position: 'top-end',
-                    showConfirmButton: false,
-                    timer: 3000,
-                    background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
-                    color: document.documentElement.classList.contains('dark') ? '#fff' : '#374151',
-                });
-            });
-
-            // Theme click
-            document.getElementById('themeToggle').addEventListener('click', toggleDarkMode);
-        });
-
-        function renderChart() {
-            const ctx = document.getElementById('savingChart');
-            if (!ctx) return;
-
-            if (myChartInstance) {
-                myChartInstance.destroy();
-            }
-
-            // หากไม่มีข้อมูล ให้แสดงกราฟเปล่า
-            if (historyData.length === 0) return;
-
-            // นำข้อมูลประวัติมาสลับลำดับจากเก่าไปใหม่ เพื่อวาดกราฟจากซ้ายไปขวา
-            const chartData = [...historyData].reverse();
-            // ตัดชื่อสถานที่ให้สั้นลงถ้ายาวเกินไป
-            const labels = chartData.map(item => item.location.length > 15 ? item.location.substring(0, 15) + '...' : item.location);
-            const data = chartData.map(item => item.save * 12); // คิดเป็นประหยัดรายปี
-
-            const isDark = document.documentElement.classList.contains('dark');
-            const textColor = isDark ? '#e5e7eb' : '#4b5563';
-            const gridColor = isDark ? '#374151' : '#f3f4f6';
-
-            myChartInstance = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'ประหยัดค่าไฟได้ต่อปี (บาท)',
-                        data: data,
-                        backgroundColor: 'rgba(168, 85, 247, 0.8)', // brand-500
-                        hoverBackgroundColor: 'rgba(147, 51, 234, 1)', // brand-600
-                        borderRadius: 8,
-                        borderSkipped: false,
-                        barPercentage: 0.6
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            grid: {
-                                color: gridColor,
-                                drawBorder: false
-                            },
-                            ticks: {
-                                color: textColor,
-                                callback: function(value) {
-                                    return '฿' + value.toLocaleString();
-                                },
-                                font: {
-                                    family: "'Prompt', sans-serif"
-                                }
-                            }
-                        },
-                        x: {
-                            grid: {
-                                display: false
-                            },
-                            ticks: {
-                                color: textColor,
-                                font: {
-                                    family: "'Prompt', sans-serif"
-                                }
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            labels: {
-                                color: textColor,
-                                font: {
-                                    family: "'Prompt', sans-serif",
-                                    size: 14
-                                }
-                            }
-                        },
-                        tooltip: {
-                            backgroundColor: isDark ? 'rgba(31, 41, 55, 0.9)' : 'rgba(255, 255, 255, 0.9)',
-                            titleColor: isDark ? '#fff' : '#1f2937',
-                            bodyColor: isDark ? '#d1d5db' : '#4b5563',
-                            borderColor: isDark ? '#374151' : '#e5e7eb',
-                            borderWidth: 1,
-                            padding: 12,
-                            titleFont: {
-                                family: "'Prompt', sans-serif",
-                                size: 14
-                            },
-                            bodyFont: {
-                                family: "'Prompt', sans-serif",
-                                size: 13
-                            },
-                            callbacks: {
-                                label: function(context) {
-                                    return ' ฿' + context.parsed.y.toLocaleString() + ' / ปี';
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-        }
-
-        // Theme Toggle
-        function toggleDarkMode() {
-            const html = document.documentElement;
-            html.classList.toggle('dark');
-            const isDark = html.classList.contains('dark');
-            
-            // Re-render chart if it exists to match theme colors
-            if (myChartInstance && document.getElementById('tab-dashboard').classList.contains('block')) {
-                renderChart();
-            }
-        }
-
-        // Sidebar & Tabs
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('sidebarOverlay');
         const openBtn = document.getElementById('openSidebarBtn');
@@ -600,7 +467,7 @@
             if (isClosed) {
                 sidebar.classList.remove('-translate-x-full');
                 overlay.classList.remove('hidden');
-                setTimeout(() => overlay.classList.add('opacity-100'), 10);
+                requestAnimationFrame(() => overlay.classList.add('opacity-100'));
             } else {
                 sidebar.classList.add('-translate-x-full');
                 overlay.classList.remove('opacity-100');
@@ -612,30 +479,204 @@
         closeBtn.addEventListener('click', toggleSidebar);
         overlay.addEventListener('click', toggleSidebar);
 
+        window.addEventListener('DOMContentLoaded', async () => {
+            ui.historyTableBody = document.getElementById('historyTableBody');
+            ui.dashTotalKw = document.getElementById('dash-total-kw');
+            ui.dashTotalSave = document.getElementById('dash-total-save');
+            ui.dashTotalRecords = document.getElementById('dash-total-records');
+            ui.tabDashboard = document.getElementById('tab-dashboard');
+            ui.displayAverageBill = document.getElementById('displayAverageBill');
+            ui.calcForm = document.getElementById('calcForm');
+            ui.savingChart = document.getElementById('savingChart');
+            ui.pageTitle = document.getElementById('pageTitle');
+
+            TAB_IDS.forEach((id) => {
+                tabEls[id] = document.getElementById('tab-' + id);
+                navEls[id] = document.getElementById('nav-' + id);
+            });
+
+            try {
+                const response = await fetch(CONFIG.API_URL);
+                const realData = await response.json();
+                if (Array.isArray(realData) && realData.length > 0) {
+                    historyData = realData.slice().reverse();
+                }
+            } catch (err) {
+                console.warn('Sheets GET:', err);
+            }
+
+            updateHistoryTable();
+
+            const historySearch = document.getElementById('historySearchInput');
+            if (historySearch) {
+                historySearch.addEventListener('input', () => {
+                    historySearchQuery = historySearch.value.trim().toLowerCase();
+                    if (historyFilterRaf) cancelAnimationFrame(historyFilterRaf);
+                    historyFilterRaf = requestAnimationFrame(() => {
+                        historyFilterRaf = 0;
+                        updateHistoryTable();
+                    });
+                });
+            }
+
+            if (ui.calcForm) {
+                ui.calcForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    simulateCalculation();
+                });
+            }
+
+            document.getElementById('notiBtn')?.addEventListener('click', () => {
+                Swal.fire({
+                    title: 'ไม่มีการแจ้งเตือนใหม่',
+                    icon: 'info',
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 3000,
+                    ...swalTheme(),
+                });
+            });
+
+            document.getElementById('themeToggle')?.addEventListener('click', toggleDarkMode);
+        });
+
+        function refreshSavingChart() {
+            const canvas = ui.savingChart || document.getElementById('savingChart');
+            if (!canvas) return;
+
+            if (historyData.length === 0) {
+                if (myChartInstance) {
+                    myChartInstance.destroy();
+                    myChartInstance = null;
+                }
+                return;
+            }
+
+            const chartData = historyData.slice().reverse();
+            const maxLen = CONFIG.CHART_LABEL_MAX;
+            const labels = chartData.map((item) => {
+                const loc = item.location || '';
+                return loc.length > maxLen ? loc.slice(0, maxLen) + '…' : loc;
+            });
+            const data = chartData.map((item) => item.save * 12);
+
+            const isDark = document.documentElement.classList.contains('dark');
+            const textColor = isDark ? '#e5e7eb' : '#4b5563';
+            const gridColor = isDark ? '#374151' : '#f3f4f6';
+            const tickFont = { family: "'Prompt', sans-serif" };
+
+            if (myChartInstance) {
+                myChartInstance.data.labels = labels;
+                myChartInstance.data.datasets[0].data = data;
+                const sc = myChartInstance.options.scales;
+                if (sc?.y?.ticks) sc.y.ticks.color = textColor;
+                if (sc?.y?.grid) sc.y.grid.color = gridColor;
+                if (sc?.x?.ticks) sc.x.ticks.color = textColor;
+                if (myChartInstance.options.plugins?.legend?.labels) {
+                    myChartInstance.options.plugins.legend.labels.color = textColor;
+                }
+                const tt = myChartInstance.options.plugins?.tooltip;
+                if (tt) {
+                    tt.backgroundColor = isDark ? 'rgba(31, 41, 55, 0.9)' : 'rgba(255, 255, 255, 0.9)';
+                    tt.titleColor = isDark ? '#fff' : '#1f2937';
+                    tt.bodyColor = isDark ? '#d1d5db' : '#4b5563';
+                    tt.borderColor = isDark ? '#374151' : '#e5e7eb';
+                }
+                myChartInstance.update('none');
+                return;
+            }
+
+            myChartInstance = new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'ประหยัดค่าไฟได้ต่อปี (บาท)',
+                        data,
+                        backgroundColor: 'rgba(168, 85, 247, 0.8)',
+                        hoverBackgroundColor: 'rgba(147, 51, 234, 1)',
+                        borderRadius: 8,
+                        borderSkipped: false,
+                        barPercentage: 0.6,
+                    }],
+                },
+                options: {
+                    animation: false,
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: gridColor, drawBorder: false },
+                            ticks: {
+                                color: textColor,
+                                callback: (value) => '฿' + Number(value).toLocaleString(),
+                                font: tickFont,
+                            },
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: textColor, font: tickFont },
+                        },
+                    },
+                    plugins: {
+                        legend: {
+                            labels: { color: textColor, font: { ...tickFont, size: 14 } },
+                        },
+                        tooltip: {
+                            backgroundColor: isDark ? 'rgba(31, 41, 55, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+                            titleColor: isDark ? '#fff' : '#1f2937',
+                            bodyColor: isDark ? '#d1d5db' : '#4b5563',
+                            borderColor: isDark ? '#374151' : '#e5e7eb',
+                            borderWidth: 1,
+                            padding: 12,
+                            titleFont: { family: "'Prompt', sans-serif", size: 14 },
+                            bodyFont: { family: "'Prompt', sans-serif", size: 13 },
+                            callbacks: {
+                                label: (ctx) => ' ฿' + ctx.parsed.y.toLocaleString() + ' / ปี',
+                            },
+                        },
+                    },
+                },
+            });
+        }
+
+        // Theme Toggle
+        function toggleDarkMode() {
+            document.documentElement.classList.toggle('dark');
+            const dash = ui.tabDashboard || document.getElementById('tab-dashboard');
+            if (myChartInstance && dash && dash.classList.contains('block')) {
+                refreshSavingChart();
+            }
+        }
+
         function switchTab(tabId) {
-            document.querySelectorAll('.tab-content').forEach(tab => {
-                tab.classList.remove('block');
-                tab.classList.add('hidden');
+            TAB_IDS.forEach((id) => {
+                const el = tabEls[id];
+                if (!el) return;
+                el.classList.toggle('hidden', id !== tabId);
+                el.classList.toggle('block', id === tabId);
             });
-            document.getElementById('tab-' + tabId).classList.remove('hidden');
-            document.getElementById('tab-' + tabId).classList.add('block');
-
-            document.querySelectorAll('.nav-btn').forEach(btn => {
-                btn.classList.remove('bg-brand-50', 'text-brand-700', 'dark:bg-brand-900/30', 'dark:text-brand-300');
-                btn.classList.add('text-gray-600', 'dark:text-gray-300');
+            TAB_IDS.forEach((id) => {
+                const btn = navEls[id];
+                if (!btn) return;
+                const on = id === tabId;
+                btn.classList.toggle('bg-brand-50', on);
+                btn.classList.toggle('text-brand-700', on);
+                btn.classList.toggle('dark:bg-brand-900/30', on);
+                btn.classList.toggle('dark:text-brand-300', on);
+                btn.classList.toggle('text-gray-600', !on);
+                btn.classList.toggle('dark:text-gray-300', !on);
             });
-            const activeBtn = document.getElementById('nav-' + tabId);
-            activeBtn.classList.remove('text-gray-600', 'dark:text-gray-300');
-            activeBtn.classList.add('bg-brand-50', 'text-brand-700', 'dark:bg-brand-900/30', 'dark:text-brand-300');
 
-            const titles = { 'dashboard': 'แดชบอร์ดภาพรวม', 'calculator': 'เครื่องมือคำนวณ', 'history': 'ประวัติการประเมิน' };
-            document.getElementById('pageTitle').innerText = titles[tabId];
+            const titles = { dashboard: 'แดชบอร์ดภาพรวม', calculator: 'เครื่องมือคำนวณ', history: 'ประวัติการประเมิน' };
+            if (ui.pageTitle) ui.pageTitle.textContent = titles[tabId] || '';
 
             if (window.innerWidth < 768) toggleSidebar();
-            
-            // Force chart render when tab is shown
+
             if (tabId === 'dashboard') {
-                setTimeout(renderChart, 100);
+                requestAnimationFrame(() => refreshSavingChart());
             }
         }
 
@@ -683,16 +724,23 @@
             const inputs = document.querySelectorAll('.bill-input');
             let sum = 0;
             let validCount = 0;
-            inputs.forEach(input => {
+            inputs.forEach((input) => {
                 const val = parseFloat(input.value);
                 if (!isNaN(val) && val > 0) {
                     sum += val;
                     validCount++;
                 }
             });
-            const avg = validCount > 0 ? (sum / validCount) : 0;
-            document.getElementById('displayAverageBill').innerText = avg.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
-            return avg; // Return for simulation
+            const avg = validCount > 0 ? sum / validCount : 0;
+            if (billInputRaf) cancelAnimationFrame(billInputRaf);
+            billInputRaf = requestAnimationFrame(() => {
+                billInputRaf = 0;
+                const el = ui.displayAverageBill || document.getElementById('displayAverageBill');
+                if (el) {
+                    el.textContent = avg.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                }
+            });
+            return avg;
         }
 
         // Roof Form Logic
@@ -730,79 +778,72 @@
 
         function removeRoof(btn) {
             btn.parentElement.remove();
-            roofCount--;
-            // Re-index letters
             const items = document.querySelectorAll('.roof-item');
+            roofCount = items.length;
             const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
             items.forEach((item, index) => {
-                item.querySelector('div:first-child').innerText = letters[index % 26];
+                item.querySelector('div:first-child').textContent = letters[index % 26];
             });
         }
 
         // Simulation Calculation
-        async function simulateCalculation() {
+        function simulateCalculation() {
             try {
-                // 1. Get average bill
                 const billAmount = calculateAverageBill();
                 if (billAmount <= 0) {
                     Swal.fire('ข้อผิดพลาด', 'กรุณากรอกค่าไฟฟ้าให้ถูกต้อง', 'error');
                     return;
                 }
 
-                const locationName = document.getElementById('locationName').value || 'ไม่ระบุสถานที่';
+                const locationName = document.getElementById('locationName').value.trim() || 'ไม่ระบุสถานที่';
                 const usageType = document.getElementById('usageType').value;
-                const costPerUnit = 4.5; 
-                const daysInMonth = 30; 
-                const sunHours = 4.0; 
+                const { COST_PER_UNIT, DAYS_IN_MONTH, SUN_HOURS, PRICE_PER_KWP, AREA_PER_KWP, PANEL_SHARE, INVERTER_SHARE, INSTALL_SHARE } = CONFIG;
 
-                // 2. Set day usage ratio
-                let dayUsageRatio = 0.5; 
+                let dayUsageRatio = 0.5;
                 if (usageType === 'office') dayUsageRatio = 0.75;
                 else if (usageType === 'night') dayUsageRatio = 0.25;
 
-                // 3. Calculate Math
-                const monthlyUnits = billAmount / costPerUnit;
-                const dailyUnits = monthlyUnits / daysInMonth;
+                const monthlyUnits = billAmount / COST_PER_UNIT;
+                const dailyUnits = monthlyUnits / DAYS_IN_MONTH;
                 const targetDailySolarUnits = dailyUnits * dayUsageRatio;
-                let exactKw = targetDailySolarUnits / sunHours;
+                const exactKw = targetDailySolarUnits / SUN_HOURS;
 
                 let recommendKw = 3;
                 if (exactKw > 7.5) recommendKw = 10;
                 else if (exactKw > 3.5) recommendKw = 5;
 
-                // 4. Roof Area Calculation
                 let warningHtml = '';
                 let areaInfoHtml = '';
                 const roofOption = document.querySelector('input[name="roofOption"]:checked').value;
-                
+                const minArea3Kw = 3 * AREA_PER_KWP;
+
                 if (roofOption === 'yes') {
                     const roofInputs = document.querySelectorAll('.roof-input');
                     let totalArea = 0;
-                    roofInputs.forEach(input => {
+                    roofInputs.forEach((input) => {
                         totalArea += parseFloat(input.value) || 0;
                     });
 
-                    let requiredArea = recommendKw * 6; 
+                    const requiredArea = recommendKw * AREA_PER_KWP;
 
-                    if (totalArea < 18) {
+                    if (totalArea < minArea3Kw) {
                         Swal.fire({
                             title: 'พื้นที่หลังคาน้อยเกินไป',
-                            text: `คุณมีพื้นที่รวม ${totalArea} ตร.ม. แต่ระบบขนาดเริ่มต้น (3 kWp) ต้องการพื้นที่อย่างน้อย 18 ตร.ม.`,
+                            text: `คุณมีพื้นที่รวม ${totalArea} ตร.ม. แต่ระบบขนาดเริ่มต้น (3 kWp) ต้องการพื้นที่อย่างน้อย ${minArea3Kw} ตร.ม.`,
                             icon: 'error',
-                            background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
-                            color: document.documentElement.classList.contains('dark') ? '#fff' : '#374151',
+                            ...swalTheme(),
                         });
                         return;
                     }
 
                     if (totalArea < requiredArea) {
-                        let originalKw = recommendKw;
-                        if (totalArea >= 30) recommendKw = 5;
-                        else if (totalArea >= 18) recommendKw = 3;
-                        
+                        const originalKw = recommendKw;
+                        if (totalArea >= 5 * AREA_PER_KWP) recommendKw = 5;
+                        else if (totalArea >= minArea3Kw) recommendKw = 3;
+
                         warningHtml = `<div class="mt-4 bg-yellow-50 dark:bg-yellow-900/30 p-3 rounded-lg border border-yellow-200 dark:border-yellow-800 text-sm text-left">
                             <p class="text-yellow-800 dark:text-yellow-300 font-semibold"><i class="fa-solid fa-triangle-exclamation"></i> ปรับลดขนาดเนื่องจากพื้นที่จำกัด</p>
-                            <p class="text-yellow-700 dark:text-yellow-400 mt-1">จากค่าไฟควรติด ${originalKw} kWp แต่พื้นที่คุณมี ${totalArea} ตร.ม. (ต้องการ ${originalKw * 6} ตร.ม.) ระบบจึงแนะนำให้ติดตั้งสูงสุดที่ <b>${recommendKw} kWp</b></p>
+                            <p class="text-yellow-700 dark:text-yellow-400 mt-1">จากค่าไฟควรติด ${originalKw} kWp แต่พื้นที่คุณมี ${totalArea} ตร.ม. (ต้องการ ${originalKw * AREA_PER_KWP} ตร.ม.) ระบบจึงแนะนำให้ติดตั้งสูงสุดที่ <b>${recommendKw} kWp</b></p>
                         </div>`;
                     } else {
                         areaInfoHtml = `<div class="mt-4 text-sm text-green-600 dark:text-green-400 font-medium"><i class="fa-solid fa-circle-check"></i> พื้นที่ ${totalArea} ตร.ม. เพียงพอสำหรับการติดตั้ง ${recommendKw} kWp</div>`;
@@ -810,23 +851,21 @@
                 } else {
                     areaInfoHtml = `<div class="mt-4 bg-blue-50 dark:bg-blue-900/30 p-3 rounded-lg border border-blue-200 dark:border-blue-800 text-sm text-left">
                         <p class="text-blue-800 dark:text-blue-300 font-semibold"><i class="fa-solid fa-info-circle"></i> การเตรียมพื้นที่</p>
-                        <p class="text-blue-700 dark:text-blue-400 mt-1">ขนาด ${recommendKw} kWp ต้องการพื้นที่ว่างบนหลังคาประมาณ <b>${recommendKw * 6} ตร.ม.</b></p>
+                        <p class="text-blue-700 dark:text-blue-400 mt-1">ขนาด ${recommendKw} kWp ต้องการพื้นที่ว่างบนหลังคาประมาณ <b>${recommendKw * AREA_PER_KWP} ตร.ม.</b></p>
                     </div>`;
                 }
 
-                // 5. Financial Calculation
-                let savedMonthly = (recommendKw * sunHours * daysInMonth) * costPerUnit;
-                savedMonthly = Math.min(savedMonthly, billAmount); // Cap savings to bill amount
+                let savedMonthly = recommendKw * SUN_HOURS * DAYS_IN_MONTH * COST_PER_UNIT;
+                savedMonthly = Math.min(savedMonthly, billAmount);
                 savedMonthly = Math.round(savedMonthly);
 
-                const totalCost = recommendKw * 30000;
-                const panelCost = totalCost * 0.40;
-                const inverterCost = totalCost * 0.25;
-                const installCost = totalCost * 0.35;
-                
+                const totalCost = recommendKw * PRICE_PER_KWP;
+                const panelCost = totalCost * PANEL_SHARE;
+                const inverterCost = totalCost * INVERTER_SHARE;
+                const installCost = totalCost * INSTALL_SHARE;
+
                 const paybackYears = totalCost / (savedMonthly * 12);
 
-                // 6. Save Data
                 const newRecord = {
                     date: getThaiDate(),
                     location: locationName,
@@ -834,59 +873,37 @@
                     size: recommendKw,
                     save: savedMonthly,
                     payback: paybackYears,
-                    totalCost: totalCost,
-                    panelCost: panelCost,
-                    inverterCost: inverterCost,
-                    installCost: installCost,
-                    warningHtml: warningHtml,
-                    areaInfoHtml: areaInfoHtml
+                    totalCost,
+                    panelCost,
+                    inverterCost,
+                    installCost,
+                    warningHtml,
+                    areaInfoHtml,
                 };
-                
-                historyData.unshift(newRecord); // Add to beginning
+
+                historyData.unshift(newRecord);
                 updateHistoryTable();
 
-                const isDark = document.documentElement.classList.contains('dark');
-                
-                // --- ส่วนที่เพิ่มใหม่: โชว์ Loading ก่อนส่งข้อมูลไป Google Sheets ---
-                Swal.fire({
-                    title: 'กำลังประมวลผล...',
-                    html: 'ระบบกำลังวิเคราะห์และบันทึกข้อมูลของคุณ',
-                    allowOutsideClick: false,
-                    showConfirmButton: false,
-                    background: isDark ? '#1f2937' : '#fff',
-                    color: isDark ? '#fff' : '#374151',
-                    didOpen: () => {
-                        Swal.showLoading();
-                    }
-                });
+                fetch(CONFIG.API_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    body: JSON.stringify(newRecord),
+                }).catch((err) => console.warn('Sheets POST:', err));
 
-                // ส่งข้อมูลไป Google Sheets
-                try {
-                    await fetch(API_URL, {
-                        method: 'POST',
-                        mode: 'no-cors',
-                        body: JSON.stringify(newRecord)
-                    });
-                } catch (fetchError) {
-                    console.error("Error sending to sheets:", fetchError);
-                    // ปล่อยให้ทำงานต่อ ไม่แจ้งเตือน error เพราะข้อมูลขึ้นหน้าเว็บแล้ว
-                }
+                const locHtml = escapeHtml(locationName);
 
-                // 7. Show Result (แทนที่ Loading เดิมด้วยสรุปผล)
                 Swal.fire({
                     title: 'ประเมินความคุ้มค่าสำเร็จ!',
                     html: `
                         <div class="mt-2 text-left">
-                            <p class="text-brand-700 dark:text-brand-300 font-semibold mb-3 border-b border-gray-200 dark:border-gray-700 pb-2"><i class="fa-solid fa-location-dot mr-1"></i> ${locationName}</p>
-                            <p class="text-gray-600 dark:text-gray-300 text-sm mb-1">จากค่าไฟเฉลี่ย: <strong class="text-lg text-gray-800 dark:text-white">฿${billAmount.toLocaleString(undefined, {maximumFractionDigits: 2})}</strong> / เดือน</p>
+                            <p class="text-brand-700 dark:text-brand-300 font-semibold mb-3 border-b border-gray-200 dark:border-gray-700 pb-2"><i class="fa-solid fa-location-dot mr-1"></i> ${locHtml}</p>
+                            <p class="text-gray-600 dark:text-gray-300 text-sm mb-1">จากค่าไฟเฉลี่ย: <strong class="text-lg text-gray-800 dark:text-white">฿${billAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong> / เดือน</p>
                             <p class="text-gray-600 dark:text-gray-300 text-sm mb-4">ขนาดติดตั้งที่เหมาะสม: <strong class="text-2xl text-brand-500">${recommendKw} kWp</strong></p>
-                            
                             <div class="bg-green-50 dark:bg-green-900/20 p-4 rounded-xl border border-green-100 dark:border-green-800 shadow-inner flex flex-col justify-center items-center">
                                 <p class="text-green-700 dark:text-green-400 text-sm font-medium mb-1">คาดว่าจะประหยัดเงินได้</p>
                                 <h3 class="text-3xl font-bold text-green-500">฿${savedMonthly.toLocaleString()}</h3>
                                 <p class="text-green-600 dark:text-green-500 text-xs mt-1">ต่อเดือน</p>
                             </div>
-
                             <div class="mt-4 flex gap-3 text-sm">
                                 <div class="flex-1 bg-gray-50 dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700 text-center">
                                     <p class="text-gray-500 dark:text-gray-400 mb-1">งบประมาณเริ่มต้น</p>
@@ -897,7 +914,6 @@
                                     <p class="font-bold text-blue-500">${paybackYears.toFixed(2)} ปี</p>
                                 </div>
                             </div>
-                            
                             ${warningHtml}
                             ${areaInfoHtml}
                         </div>
@@ -907,84 +923,90 @@
                     confirmButtonColor: '#a855f7',
                     showCancelButton: true,
                     cancelButtonText: 'ปิด',
-                    background: isDark ? '#1f2937' : '#ffffff',
-                    color: isDark ? '#ffffff' : '#374151',
+                    ...swalTheme(),
                     customClass: {
                         popup: 'rounded-3xl',
-                        title: 'text-2xl font-bold text-gray-800 dark:text-white'
-                    }
+                        title: 'text-2xl font-bold text-gray-800 dark:text-white',
+                    },
                 }).then((result) => {
-                    if (result.isConfirmed) {
-                        switchTab('history');
-                    }
-                    // Reset Form Formally
-                    document.getElementById('calcForm').reset();
-                    document.getElementById('displayAverageBill').innerText = '0.00';
+                    if (result.isConfirmed) switchTab('history');
+                    const form = ui.calcForm || document.getElementById('calcForm');
+                    if (form) form.reset();
+                    const disp = ui.displayAverageBill || document.getElementById('displayAverageBill');
+                    if (disp) disp.textContent = '0.00';
                     const billItems = document.querySelectorAll('.bill-item');
-                    for(let i=1; i<billItems.length; i++) { billItems[i].remove(); }
+                    for (let i = 1; i < billItems.length; i++) billItems[i].remove();
                     billCount = 1;
                     toggleRoofInput();
                 });
-
             } catch (error) {
-                console.error("Calculation Error:", error);
+                console.error('Calculation Error:', error);
                 Swal.fire('ข้อผิดพลาด', 'เกิดปัญหาในการประมวลผล กรุณาลองใหม่อีกครั้ง', 'error');
             }
         }
 
         function updateHistoryTable() {
-            const tbody = document.getElementById('historyTableBody');
-            let html = '';
-            
+            const tbody = ui.historyTableBody || document.getElementById('historyTableBody');
+            if (!tbody) return;
+
             let totalKw = 0;
             let totalSave = 0;
+            historyData.forEach((item) => {
+                totalKw += item.size;
+                totalSave += item.save * 12;
+            });
 
-            if(historyData.length === 0) {
-                html = `<tr><td colspan="6" class="text-center py-8 text-gray-400">ยังไม่มีประวัติการคำนวณ</td></tr>`;
+            const q = historySearchQuery;
+            const rows = historyData
+                .map((item, index) => ({ item, index }))
+                .filter(({ item }) => !q || String(item.location || '').toLowerCase().includes(q));
+
+            let html = '';
+            if (historyData.length === 0) {
+                html = '<tr><td colspan="6" class="text-center py-8 text-gray-400">ยังไม่มีประวัติการคำนวณ</td></tr>';
+            } else if (rows.length === 0) {
+                html = '<tr><td colspan="6" class="text-center py-8 text-gray-400">ไม่พบรายการที่ตรงกับการค้นหา</td></tr>';
             } else {
-                historyData.forEach((item, index) => {
-                    totalKw += item.size;
-                    totalSave += item.save * 12; // Yearly
-
+                for (const { item, index } of rows) {
+                    const loc = escapeHtml(item.location || '');
+                    const dt = escapeHtml(item.date || '');
                     html += `
                         <tr class="hover:bg-brand-50/50 dark:hover:bg-gray-700/50 transition-colors group">
-                            <td class="py-3 px-4">${item.date}</td>
-                            <td class="py-3 px-4 font-medium">${item.location}</td>
-                            <td class="py-3 px-4 text-gray-500">฿${item.bill.toLocaleString(undefined, {maximumFractionDigits: 2})}</td>
+                            <td class="py-3 px-4">${dt}</td>
+                            <td class="py-3 px-4 font-medium">${loc}</td>
+                            <td class="py-3 px-4 text-gray-500">฿${item.bill.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
                             <td class="py-3 px-4"><span class="bg-brand-100 text-brand-700 dark:bg-brand-900/50 dark:text-brand-300 py-1 px-3 rounded-full text-xs font-bold">${item.size} kWp</span></td>
                             <td class="py-3 px-4 text-green-500 font-medium">฿${item.save.toLocaleString()}</td>
                             <td class="py-3 px-4 text-center">
-                                <button onclick="viewHistoryDetail(${index})" class="text-brand-500 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 mr-3 transition-colors" title="ดูรายละเอียด"><i class="fa-solid fa-eye"></i></button>
-                                <button onclick="deleteHistory(${index})" class="text-gray-400 hover:text-red-500 transition-colors" title="ลบ"><i class="fa-solid fa-trash"></i></button>
+                                <button type="button" onclick="viewHistoryDetail(${index})" class="text-brand-500 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 mr-3 transition-colors" title="ดูรายละเอียด"><i class="fa-solid fa-eye"></i></button>
+                                <button type="button" onclick="deleteHistory(${index})" class="text-gray-400 hover:text-red-500 transition-colors" title="ลบ"><i class="fa-solid fa-trash"></i></button>
                             </td>
-                        </tr>
-                    `;
-                });
+                        </tr>`;
+                }
             }
             tbody.innerHTML = html;
 
-            // Update Dashboard
-            document.getElementById('dash-total-kw').innerText = totalKw;
-            document.getElementById('dash-total-save').innerText = totalSave.toLocaleString();
-            document.getElementById('dash-total-records').innerText = historyData.length;
+            if (ui.dashTotalKw) ui.dashTotalKw.textContent = String(totalKw);
+            if (ui.dashTotalSave) ui.dashTotalSave.textContent = totalSave.toLocaleString();
+            if (ui.dashTotalRecords) ui.dashTotalRecords.textContent = String(historyData.length);
 
-            if(document.getElementById('tab-dashboard').classList.contains('block')) {
-                renderChart();
+            const dash = ui.tabDashboard || document.getElementById('tab-dashboard');
+            if (dash && dash.classList.contains('block')) {
+                refreshSavingChart();
             }
         }
 
         function deleteHistory(index) {
             Swal.fire({
                 title: 'ยืนยันการลบ?',
-                text: "ลบประวัตินี้แล้วจะไม่สามารถกู้คืนได้",
+                text: 'ลบประวัตินี้แล้วจะไม่สามารถกู้คืนได้',
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#ef4444',
                 cancelButtonColor: '#6b7280',
                 confirmButtonText: 'ใช่, ลบเลย!',
                 cancelButtonText: 'ยกเลิก',
-                background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
-                color: document.documentElement.classList.contains('dark') ? '#fff' : '#374151',
+                ...swalTheme(),
             }).then((result) => {
                 if (result.isConfirmed) {
                     historyData.splice(index, 1);
@@ -994,8 +1016,7 @@
                         icon: 'success',
                         timer: 1500,
                         showConfirmButton: false,
-                        background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
-                        color: document.documentElement.classList.contains('dark') ? '#fff' : '#374151',
+                        ...swalTheme(),
                     });
                 }
             });
@@ -1004,10 +1025,10 @@
         // View Detail & Edit Budget Modal
         function viewHistoryDetail(index) {
             const item = historyData[index];
-
+            if (!item) return;
             const resultHtml = `<div class="text-left mt-4 space-y-2">
                 <div class="flex justify-between items-end border-b border-gray-200 dark:border-gray-700 pb-2 mb-3">
-                    <p class="text-brand-700 dark:text-brand-300 font-semibold"><i class="fa-solid fa-location-dot mr-1"></i> ${item.location}</p>
+                    <p class="text-brand-700 dark:text-brand-300 font-semibold"><i class="fa-solid fa-location-dot mr-1"></i> ${escapeHtml(item.location || '')}</p>
                     <button onclick="resetDefaultCost(${index})" class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-300 px-2 py-1 rounded transition-colors"><i class="fa-solid fa-rotate-left"></i> คืนค่าเริ่มต้น</button>
                 </div>
                 <div class="grid grid-cols-2 gap-2 text-sm">
@@ -1067,24 +1088,6 @@
                     </div>
                 </div>
 
-                <!-- AI Assistant Section -->
-                <div class="mt-4 p-4 bg-gradient-to-r from-purple-50 to-brand-50 dark:from-purple-900/20 dark:to-brand-900/20 rounded-xl border border-purple-200 dark:border-purple-800/50 shadow-sm">
-                    <div class="flex justify-between items-center mb-3">
-                        <p class="font-bold text-purple-700 dark:text-purple-400 flex items-center gap-2">
-                            <i class="fa-solid fa-wand-magic-sparkles"></i> AI ผู้ช่วยวิเคราะห์โครงการ
-                        </p>
-                        <button onclick="generateAIReport(${index})" id="ai-btn-${index}" class="text-xs bg-gradient-to-r from-purple-500 to-brand-600 hover:from-purple-600 hover:to-brand-700 text-white px-3 py-1.5 rounded-lg transition-transform transform hover:scale-105 shadow-md flex items-center gap-1">
-                            <i class="fa-solid fa-robot"></i> วิเคราะห์ด้วย AI
-                        </button>
-                    </div>
-                    <div id="ai-result-${index}" class="text-sm text-gray-700 dark:text-gray-300 hidden bg-white/60 dark:bg-gray-800/60 p-3 rounded-lg border border-white dark:border-gray-700 leading-relaxed">
-                        <!-- AI response goes here -->
-                    </div>
-                    <div id="ai-loading-${index}" class="text-sm text-purple-600 dark:text-purple-400 hidden flex items-center justify-center gap-3 py-4 font-medium">
-                        <i class="fa-solid fa-circle-notch fa-spin text-xl"></i> <span>Gemini กำลังวิเคราะห์ความคุ้มค่า...</span>
-                    </div>
-                </div>
-
                 ${item.warningHtml || ''}
                 ${item.areaInfoHtml || ''}
                </div>`;
@@ -1095,8 +1098,7 @@
                 showConfirmButton: true,
                 confirmButtonText: 'บันทึกและปิด',
                 confirmButtonColor: '#a855f7',
-                background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
-                color: document.documentElement.classList.contains('dark') ? '#fff' : '#374151',
+                ...swalTheme(),
                 customClass: {
                     popup: 'rounded-3xl',
                     title: 'text-xl font-bold text-brand-700 dark:text-brand-400',
@@ -1131,13 +1133,14 @@
             document.getElementById(`detail-payback-${index}`).innerText = newPaybackDisplay;
             
             const container = document.getElementById(`payback-container-${index}`);
-            container.classList.add('bg-brand-100', 'dark:bg-brand-900/40');
-            container.classList.remove('bg-blue-50', 'dark:bg-blue-900/20');
-            
-            setTimeout(() => {
-                container.classList.remove('bg-brand-100', 'dark:bg-brand-900/40');
-                container.classList.add('bg-blue-50', 'dark:bg-blue-900/20');
-            }, 400);
+            if (container) {
+                container.classList.add('bg-brand-100', 'dark:bg-brand-900/40');
+                container.classList.remove('bg-blue-50', 'dark:bg-blue-900/20');
+                setTimeout(() => {
+                    container.classList.remove('bg-brand-100', 'dark:bg-brand-900/40');
+                    container.classList.add('bg-blue-50', 'dark:bg-blue-900/20');
+                }, 400);
+            }
 
             item.panelCost = panel;
             item.inverterCost = inverter;
@@ -1149,14 +1152,11 @@
             const item = historyData[index];
             if (!item) return;
 
-            // คำนวณค่ามาตรฐานใหม่จากขนาด (kWp)
-            // มาตรฐาน: 30,000 บาท/kWp -> แผง 40%, อินเวอร์เตอร์ 25%, ติดตั้ง 35%
-            const defaultTotal = item.size * 30000;
-            const defaultPanel = defaultTotal * 0.40;
-            const defaultInverter = defaultTotal * 0.25;
-            const defaultInstall = defaultTotal * 0.35;
-
-            // หาช่อง Input ในหน้าจอ
+            const { PRICE_PER_KWP, PANEL_SHARE, INVERTER_SHARE, INSTALL_SHARE } = CONFIG;
+            const defaultTotal = item.size * PRICE_PER_KWP;
+            const defaultPanel = defaultTotal * PANEL_SHARE;
+            const defaultInverter = defaultTotal * INVERTER_SHARE;
+            const defaultInstall = defaultTotal * INSTALL_SHARE;
             const panelInput = document.getElementById(`edit-panel-${index}`);
             const inverterInput = document.getElementById(`edit-inverter-${index}`);
             const installInput = document.getElementById(`edit-install-${index}`);
@@ -1178,95 +1178,8 @@
                     icon: 'success',
                     showConfirmButton: false,
                     timer: 1500,
-                    background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
-                    color: document.documentElement.classList.contains('dark') ? '#fff' : '#374151',
+                    ...swalTheme(),
                 });
-            }
-        }
-
-        // --- ฟังก์ชันใหม่: เรียกใช้งาน Gemini API (แก้ไข Error 400) ---
-        async function generateAIReport(index) {
-            const item = historyData[index];
-            const btn = document.getElementById(`ai-btn-${index}`);
-            const resultDiv = document.getElementById(`ai-result-${index}`);
-            const loadingDiv = document.getElementById(`ai-loading-${index}`);
-
-            // ปรับ UI เป็นสถานะกำลังโหลด
-            btn.classList.add('hidden');
-            resultDiv.classList.add('hidden');
-            loadingDiv.classList.remove('hidden');
-
-            // 1. รวมคำสั่งบทบาท เข้าไปใน Prompt หลักเลยเพื่อป้องกัน Error โครงสร้าง JSON
-            const prompt = `คุณคือวิศวกรและที่ปรึกษาด้านพลังงานแสงอาทิตย์ที่เชี่ยวชาญ อธิบายด้วยภาษาที่เข้าใจง่าย เป็นมิตร ให้กำลังใจ และเป็นมืออาชีพ ตอบเป็นภาษาไทย
-
-กรุณาวิเคราะห์โครงการโซล่าเซลล์ต่อไปนี้ สรุปความคุ้มค่าสั้นๆ 1 ย่อหน้า และให้ข้อควรระวัง/คำแนะนำ 1 ข้อ
-ข้อมูลประกอบ:
-- สถานที่: ${item.location}
-- ค่าไฟเดิมเฉลี่ย: ${item.bill.toLocaleString()} บาท/เดือน
-- ขนาดระบบที่แนะนำ: ${item.size} kWp
-- งบประมาณโดยประมาณ: ${item.totalCost.toLocaleString()} บาท
-- คืนทุนใน: ${item.payback.toFixed(2)} ปี
-- ประหยัดไฟได้ประมาณ: ${item.save.toLocaleString()} บาท/เดือน
-            
-ข้อกำหนด: 
-- ตอบเป็น HTML (ใช้ <b>, <br>, <ul>, <li> เพื่อจัดระเบียบให้สวยงามได้)
-- ตอบโดยตรง ไม่ต้องมี Markdown (ไม่ต้องมีแท็ก html ครอบ)`;
-
-            // ไม่เก็บ API key ใน repo — ตั้งครั้งเดียวในเบราว์เซอร์:
-            // เปิด DevTools Console แล้วรัน: localStorage.setItem('gemini_api_key', 'YOUR_KEY')
-            const apiKey = localStorage.getItem('gemini_api_key') || '';
-            if (!apiKey) {
-                loadingDiv.classList.add('hidden');
-                resultDiv.classList.remove('hidden');
-                btn.classList.remove('hidden');
-                resultDiv.innerHTML = `<p class="text-amber-700 dark:text-amber-300"><i class="fa-solid fa-key"></i> ยังไม่ได้ตั้งค่า Gemini API Key</p><p class="text-xs text-gray-600 dark:text-gray-400 mt-2">เปิด DevTools → Console แล้วรัน:</p><code class="block text-xs bg-gray-200 dark:bg-gray-700 p-2 rounded mt-1 break-all">localStorage.setItem('gemini_api_key','YOUR_KEY')</code><p class="text-xs text-gray-500 mt-2">รับคีย์ได้ที่ <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" class="text-brand-600 underline">Google AI Studio</a> จากนั้นกด "วิเคราะห์ด้วย AI" อีกครั้ง</p>`;
-                return;
-            }
-
-            // 2. ใช้ชื่อโมเดล gemini-1.5-flash มาตรฐาน
-            // แก้ไขเป็นแบบนี้ (ใช้ v1 และ gemini-1.5-flash)
-            const apiUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-
-            // 3. โครงสร้าง Payload แบบมาตรฐานที่เรียบง่ายที่สุด
-            const payload = {
-                contents: [{ parts: [{ text: prompt }] }]
-            };
-
-            try {
-                // เรียกใช้ API
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                // ตรวจสอบว่า API ตอบกลับมาโอเคไหม ถ้าไม่โอเคให้พ่น Error ออกมาดู
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error("รายละเอียด Error จาก Google:", errorText);
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const result = await response.json();
-                const candidate = result.candidates?.[0];
-
-                if (candidate && candidate.content?.parts?.[0]?.text) {
-                    // ลบแท็ก ```html ที่ AI อาจจะเผลอใส่มาออกไป
-                    let text = candidate.content.parts[0].text;
-                    text = text.replace(/```html/g, '').replace(/```/g, '');
-                    resultDiv.innerHTML = text; // แสดงผลลัพธ์
-                } else {
-                    resultDiv.innerHTML = '<p class="text-red-500"><i class="fa-solid fa-triangle-exclamation"></i> ไม่สามารถวิเคราะห์ได้ในขณะนี้ กรุณาลองใหม่</p>';
-                }
-            } catch (error) {
-                console.error("AI Generation Error:", error);
-                resultDiv.innerHTML = '<p class="text-red-500"><i class="fa-solid fa-triangle-exclamation"></i> เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่อีกครั้ง</p>';
-            } finally {
-                // คืนค่า UI กลับมาเมื่อโหลดเสร็จ
-                loadingDiv.classList.add('hidden');
-                resultDiv.classList.remove('hidden');
-                btn.classList.remove('hidden');
-                btn.innerHTML = '<i class="fa-solid fa-rotate-right"></i> วิเคราะห์ใหม่';
             }
         }
     </script>
