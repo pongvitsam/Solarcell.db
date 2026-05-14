@@ -455,18 +455,7 @@
             
             // --- ปิด SweetAlert เมื่อโหลดเสร็จ ---
             Swal.close();
-            // 1. ดึงข้อมูลจริงจาก Google Sheets
-    try {
-        const response = await fetch(API_URL);
-        const realData = await response.json();
-        if (realData && realData.length > 0) {
-            historyData = realData.reverse(); // นำข้อมูลจริงมาแทนที่ข้อมูลจำลอง
-        }
-    } catch (err) {
-        console.log("Using mock data because:", err);
-    }
-            updateHistoryTable();
-            
+
             // Notification click
             document.getElementById('notiBtn').addEventListener('click', () => {
                 Swal.fire({
@@ -750,7 +739,6 @@
             });
         }
 
-        // Simulation Calculation
         // Simulation Calculation
         async function simulateCalculation() {
             try {
@@ -1156,7 +1144,8 @@
             item.installCost = install;
             item.totalCost = newTotal;
         }
-            function resetDefaultCost(index) {
+
+        function resetDefaultCost(index) {
             const item = historyData[index];
             if (!item) return;
 
@@ -1223,9 +1212,17 @@
 - ตอบเป็น HTML (ใช้ <b>, <br>, <ul>, <li> เพื่อจัดระเบียบให้สวยงามได้)
 - ตอบโดยตรง ไม่ต้องมี Markdown (ไม่ต้องมีแท็ก html ครอบ)`;
 
-            // *** อย่าลืมเอา API Key ของคุณมาใส่ตรงนี้นะครับ ***
-            const apiKey = "AIzaSyBEohddzYDBk1ihbMJqrIo03dUhXjKBX0o"; 
-            
+            // ไม่เก็บ API key ใน repo — ตั้งครั้งเดียวในเบราว์เซอร์:
+            // เปิด DevTools Console แล้วรัน: localStorage.setItem('gemini_api_key', 'YOUR_KEY')
+            const apiKey = localStorage.getItem('gemini_api_key') || '';
+            if (!apiKey) {
+                loadingDiv.classList.add('hidden');
+                resultDiv.classList.remove('hidden');
+                btn.classList.remove('hidden');
+                resultDiv.innerHTML = `<p class="text-amber-700 dark:text-amber-300"><i class="fa-solid fa-key"></i> ยังไม่ได้ตั้งค่า Gemini API Key</p><p class="text-xs text-gray-600 dark:text-gray-400 mt-2">เปิด DevTools → Console แล้วรัน:</p><code class="block text-xs bg-gray-200 dark:bg-gray-700 p-2 rounded mt-1 break-all">localStorage.setItem('gemini_api_key','YOUR_KEY')</code><p class="text-xs text-gray-500 mt-2">รับคีย์ได้ที่ <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" class="text-brand-600 underline">Google AI Studio</a> จากนั้นกด "วิเคราะห์ด้วย AI" อีกครั้ง</p>`;
+                return;
+            }
+
             // 2. ใช้ชื่อโมเดล gemini-1.5-flash มาตรฐาน
             // แก้ไขเป็นแบบนี้ (ใช้ v1 และ gemini-1.5-flash)
             const apiUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
