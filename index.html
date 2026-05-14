@@ -427,6 +427,34 @@
 
         // Init App
         window.addEventListener('DOMContentLoaded', async () => {
+            // --- เพิ่ม SweetAlert Loading ตอนดึงข้อมูล ---
+            Swal.fire({
+                title: 'กำลังโหลดข้อมูล...',
+                html: 'กรุณารอสักครู่',
+                allowOutsideClick: false,
+                showConfirmButton: false,
+                background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
+                color: document.documentElement.classList.contains('dark') ? '#fff' : '#374151',
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            // 1. ดึงข้อมูลจริงจาก Google Sheets
+            try {
+                const response = await fetch(API_URL);
+                const realData = await response.json();
+                if (realData && realData.length > 0) {
+                    historyData = realData.reverse(); // นำข้อมูลจริงมาแทนที่ข้อมูลจำลอง
+                }
+            } catch (err) {
+                console.log("Using mock data because:", err);
+            }
+            
+            updateHistoryTable();
+            
+            // --- ปิด SweetAlert เมื่อโหลดเสร็จ ---
+            Swal.close();
             // 1. ดึงข้อมูลจริงจาก Google Sheets
     try {
         const response = await fetch(API_URL);
@@ -723,7 +751,8 @@
         }
 
         // Simulation Calculation
-        function simulateCalculation() {
+        // Simulation Calculation
+        async function simulateCalculation() {
             try {
                 // 1. Get average bill
                 const billAmount = calculateAverageBill();
@@ -827,14 +856,35 @@
                 
                 historyData.unshift(newRecord); // Add to beginning
                 updateHistoryTable();
-;
-                // 7. Show Result
+
                 const isDark = document.documentElement.classList.contains('dark');
-                fetch(API_URL, {
-    method: 'POST',
-    mode: 'no-cors',
-    body: JSON.stringify(newRecord)
-});
+                
+                // --- ส่วนที่เพิ่มใหม่: โชว์ Loading ก่อนส่งข้อมูลไป Google Sheets ---
+                Swal.fire({
+                    title: 'กำลังประมวลผล...',
+                    html: 'ระบบกำลังวิเคราะห์และบันทึกข้อมูลของคุณ',
+                    allowOutsideClick: false,
+                    showConfirmButton: false,
+                    background: isDark ? '#1f2937' : '#fff',
+                    color: isDark ? '#fff' : '#374151',
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+
+                // ส่งข้อมูลไป Google Sheets
+                try {
+                    await fetch(API_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        body: JSON.stringify(newRecord)
+                    });
+                } catch (fetchError) {
+                    console.error("Error sending to sheets:", fetchError);
+                    // ปล่อยให้ทำงานต่อ ไม่แจ้งเตือน error เพราะข้อมูลขึ้นหน้าเว็บแล้ว
+                }
+
+                // 7. Show Result (แทนที่ Loading เดิมด้วยสรุปผล)
                 Swal.fire({
                     title: 'ประเมินความคุ้มค่าสำเร็จ!',
                     html: `
@@ -887,14 +937,12 @@
                     billCount = 1;
                     toggleRoofInput();
                 });
-            // ส่งข้อมูลไป Google Sheets (ย้ายมาไว้ก่อนจบ try)
-       
 
-    } catch (error) {
-        console.error("Calculation Error:", error);
-        Swal.fire('ข้อผิดพลาด', 'เกิดปัญหาในการประมวลผล กรุณาลองใหม่อีกครั้ง', 'error');
-    }
-}
+            } catch (error) {
+                console.error("Calculation Error:", error);
+                Swal.fire('ข้อผิดพลาด', 'เกิดปัญหาในการประมวลผล กรุณาลองใหม่อีกครั้ง', 'error');
+            }
+        }
 
         function updateHistoryTable() {
             const tbody = document.getElementById('historyTableBody');
