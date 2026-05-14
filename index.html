@@ -1221,8 +1221,8 @@
             - ตอบเป็น HTML (ใช้ <b>, <br>, <ul>, <li> เพื่อจัดระเบียบให้สวยงามได้)
             - ตอบโดยตรง ไม่ต้องมี Markdown (ไม่ต้องมีแท็ก html ครอบ)`;
 
-            const apiKey = ""; // API Key จะถูกจัดการโดยอัตโนมัติในสภาพแวดล้อมนี้
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+            const apiKey = "AIzaSyBEohddzYDBk1ihbMJqrIo03dUhXjKBX0o"; // API Key จะถูกจัดการโดยอัตโนมัติในสภาพแวดล้อมนี้
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
 
             const payload = {
                 contents: [{ parts: [{ text: prompt }] }],
