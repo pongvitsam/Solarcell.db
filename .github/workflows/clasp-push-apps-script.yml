@@ -1,0 +1,38 @@
+name: Push SolarSave Apps Script (clasp)
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'Solarsave/google-apps-script/**'
+      - '.github/workflows/clasp-push-apps-script.yml'
+  workflow_dispatch:
+
+jobs:
+  clasp-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: Solarsave/google-apps-script/package-lock.json
+
+      - name: Install dependencies
+        working-directory: Solarsave/google-apps-script
+        run: npm ci
+
+      - name: clasp push
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        working-directory: Solarsave/google-apps-script
+        run: |
+          set -e
+          if [ -z "${CLASPRC_JSON}" ]; then
+            echo "::notice::Skipping clasp push: add repo secret CLASPRC_JSON (full ~/.clasprc.json after clasp login). See README."
+            exit 0
+          fi
+          printf '%s\n' "${CLASPRC_JSON}" > "${HOME}/.clasprc.json"
+          npx clasp push --force

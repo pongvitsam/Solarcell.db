@@ -18,6 +18,20 @@ npm run push
 
 ครั้งแรกต้อง `clasp login` (เปิดเบราว์เซอร์ยืนยันบัญชี Google ที่มีสิทธิแก้โปรเจกต์นั้น) จากนั้น `npm run push` จะอัปโหลด `Code.gs` + `appsscript.json` ขึ้น Apps Script โดยตรง
 
+### อัปโหลด Apps Script อัตโนมัติ (GitHub Actions — ทำครั้งเดียว)
+
+หลัง `clasp login` บนเครื่องคุณแล้ว:
+
+1. เปิดไฟล์ **`~/.clasprc.json`** (Windows: `C:\Users\<ชื่อผู้ใช้>\.clasprc.json`) แล้วคัดลอก **ทั้งไฟล์** (เป็น JSON ยาว ๆ)
+2. ที่ GitHub repo → **Settings → Secrets and variables → Actions → New repository secret**
+   - Name: **`CLASPRC_JSON`**
+   - Value: วาง JSON ทั้งก้อน
+3. ทุกครั้งที่ push ไป `main` / `master` และมีการแก้ใน `Solarsave/google-apps-script/` workflow **`Push SolarSave Apps Script (clasp)`** จะรัน `clasp push` ให้
+
+ถ้ายังไม่ตั้ง secret workflow จะข้ามขั้นนี้โดยไม่ล้ม build อื่น (แค่แสดง notice ใน log)
+
+**ความปลอดภัย:** `CLASPRC_JSON` คือ OAuth token — อย่าแชร์ publicly; ถ้า leak ให้ revoke ที่ Google Account และรัน `clasp login` ใหม่แล้วอัปเดต secret
+
 ## รันในเครื่อง
 
 เปิดไฟล์ `index.html` ในเบราว์เซอร์ หรือใช้เซิร์ฟเวอร์สแตติก เช่น `npx serve .`
