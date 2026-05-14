@@ -882,16 +882,18 @@
                     billCount = 1;
                     toggleRoofInput();
                 });
-            } catch (error) {
-                console.error("Calculation Error:", error);
-                Swal.fire('ข้อผิดพลาด', 'เกิดปัญหาในการประมวลผล กรุณาลองใหม่อีกครั้ง', 'error');
-            }
+            // ส่งข้อมูลไป Google Sheets (ย้ายมาไว้ก่อนจบ try)
         fetch(API_URL, {
-    method: 'POST',
-    mode: 'no-cors',
-    body: JSON.stringify(newRecord)
-});
-        }
+            method: 'POST',
+            mode: 'no-cors',
+            body: JSON.stringify(newRecord)
+        });
+
+    } catch (error) {
+        console.error("Calculation Error:", error);
+        Swal.fire('ข้อผิดพลาด', 'เกิดปัญหาในการประมวลผล กรุณาลองใหม่อีกครั้ง', 'error');
+    }
+}
 
         function updateHistoryTable() {
             const tbody = document.getElementById('historyTableBody');
