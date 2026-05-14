@@ -1194,8 +1194,8 @@
                 });
             }
         }
-        // ----------------------------------------
-        // --- ฟังก์ชันใหม่: เรียกใช้งาน Gemini API ---
+
+        // --- ฟังก์ชันใหม่: เรียกใช้งาน Gemini API (แก้ไข Error 400) ---
         async function generateAIReport(index) {
             const item = historyData[index];
             const btn = document.getElementById(`ai-btn-${index}`);
@@ -1207,28 +1207,31 @@
             resultDiv.classList.add('hidden');
             loadingDiv.classList.remove('hidden');
 
-            // สร้าง Prompt ส่งให้ Gemini (แนบข้อมูลการคำนวณไปด้วย)
-            const prompt = `วิเคราะห์โครงการโซล่าเซลล์ต่อไปนี้ สรุปความคุ้มค่าสั้นๆ 1 ย่อหน้า และให้ข้อควรระวัง/คำแนะนำ 1 ข้อ
-            ข้อมูลประกอบ:
-            - สถานที่: ${item.location}
-            - ค่าไฟเดิมเฉลี่ย: ${item.bill.toLocaleString()} บาท/เดือน
-            - ขนาดระบบที่แนะนำ: ${item.size} kWp
-            - งบประมาณโดยประมาณ: ${item.totalCost.toLocaleString()} บาท
-            - คืนทุนใน: ${item.payback.toFixed(2)} ปี
-            - ประหยัดไฟได้ประมาณ: ${item.save.toLocaleString()} บาท/เดือน
+            // 1. รวมคำสั่งบทบาท เข้าไปใน Prompt หลักเลยเพื่อป้องกัน Error โครงสร้าง JSON
+            const prompt = `คุณคือวิศวกรและที่ปรึกษาด้านพลังงานแสงอาทิตย์ที่เชี่ยวชาญ อธิบายด้วยภาษาที่เข้าใจง่าย เป็นมิตร ให้กำลังใจ และเป็นมืออาชีพ ตอบเป็นภาษาไทย
+
+กรุณาวิเคราะห์โครงการโซล่าเซลล์ต่อไปนี้ สรุปความคุ้มค่าสั้นๆ 1 ย่อหน้า และให้ข้อควรระวัง/คำแนะนำ 1 ข้อ
+ข้อมูลประกอบ:
+- สถานที่: ${item.location}
+- ค่าไฟเดิมเฉลี่ย: ${item.bill.toLocaleString()} บาท/เดือน
+- ขนาดระบบที่แนะนำ: ${item.size} kWp
+- งบประมาณโดยประมาณ: ${item.totalCost.toLocaleString()} บาท
+- คืนทุนใน: ${item.payback.toFixed(2)} ปี
+- ประหยัดไฟได้ประมาณ: ${item.save.toLocaleString()} บาท/เดือน
             
-            ข้อกำหนด: 
-            - ตอบเป็น HTML (ใช้ <b>, <br>, <ul>, <li> เพื่อจัดระเบียบให้สวยงามได้)
-            - ตอบโดยตรง ไม่ต้องมี Markdown (ไม่ต้องมีแท็ก html ครอบ)`;
+ข้อกำหนด: 
+- ตอบเป็น HTML (ใช้ <b>, <br>, <ul>, <li> เพื่อจัดระเบียบให้สวยงามได้)
+- ตอบโดยตรง ไม่ต้องมี Markdown (ไม่ต้องมีแท็ก html ครอบ)`;
 
-            const apiKey = "AIzaSyBEohddzYDBk1ihbMJqrIo03dUhXjKBX0o"; // API Key จะถูกจัดการโดยอัตโนมัติในสภาพแวดล้อมนี้
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
+            // *** อย่าลืมเอา API Key ของคุณมาใส่ตรงนี้นะครับ ***
+            const apiKey = "ใส่_API_KEY_ของคุณที่นี่"; 
+            
+            // 2. ใช้ชื่อโมเดล gemini-1.5-flash มาตรฐาน
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
+            // 3. โครงสร้าง Payload แบบมาตรฐานที่เรียบง่ายที่สุด
             const payload = {
-                contents: [{ parts: [{ text: prompt }] }],
-                systemInstruction: {
-                    parts: [{ text: "คุณคือวิศวกรและที่ปรึกษาด้านพลังงานแสงอาทิตย์ที่เชี่ยวชาญ อธิบายด้วยภาษาที่เข้าใจง่าย เป็นมิตร ให้กำลังใจ และเป็นมืออาชีพ ตอบเป็นภาษาไทย" }]
-                }
+                contents: [{ parts: [{ text: prompt }] }]
             };
 
             try {
@@ -1239,18 +1242,27 @@
                     body: JSON.stringify(payload)
                 });
 
+                // ตรวจสอบว่า API ตอบกลับมาโอเคไหม ถ้าไม่โอเคให้พ่น Error ออกมาดู
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error("รายละเอียด Error จาก Google:", errorText);
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
                 const result = await response.json();
                 const candidate = result.candidates?.[0];
 
                 if (candidate && candidate.content?.parts?.[0]?.text) {
-                    const text = candidate.content.parts[0].text;
+                    // ลบแท็ก ```html ที่ AI อาจจะเผลอใส่มาออกไป
+                    let text = candidate.content.parts[0].text;
+                    text = text.replace(/```html/g, '').replace(/```/g, '');
                     resultDiv.innerHTML = text; // แสดงผลลัพธ์
                 } else {
                     resultDiv.innerHTML = '<p class="text-red-500"><i class="fa-solid fa-triangle-exclamation"></i> ไม่สามารถวิเคราะห์ได้ในขณะนี้ กรุณาลองใหม่</p>';
                 }
             } catch (error) {
                 console.error("AI Generation Error:", error);
-                resultDiv.innerHTML = '<p class="text-red-500"><i class="fa-solid fa-triangle-exclamation"></i> เกิดข้อผิดพลาดในการเชื่อมต่อกับ AI Assistant</p>';
+                resultDiv.innerHTML = '<p class="text-red-500"><i class="fa-solid fa-triangle-exclamation"></i> เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่อีกครั้ง</p>';
             } finally {
                 // คืนค่า UI กลับมาเมื่อโหลดเสร็จ
                 loadingDiv.classList.add('hidden');
