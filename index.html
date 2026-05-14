@@ -371,6 +371,7 @@
 
     <!-- Scripts -->
     <script>
+        const API_URL = 'https://script.google.com/macros/s/AKfycbziLwolUJodpcm7GBDmA_eeF4sZgh_mxu672JuBP0noNMVvdblpHzZB-0U7QvqfGQWt/exec';
         // State Management - ข้อมูลจำลอง (Mock Data)
         let historyData = [
             {
@@ -426,6 +427,16 @@
 
         // Init App
         window.addEventListener('DOMContentLoaded', () => {
+            // 1. ดึงข้อมูลจริงจาก Google Sheets
+    try {
+        const response = await fetch(API_URL);
+        const realData = await response.json();
+        if (realData && realData.length > 0) {
+            historyData = realData.reverse(); // นำข้อมูลจริงมาแทนที่ข้อมูลจำลอง
+        }
+    } catch (err) {
+        console.log("Using mock data because:", err);
+    }
             updateHistoryTable();
             
             // Notification click
@@ -875,6 +886,11 @@
                 console.error("Calculation Error:", error);
                 Swal.fire('ข้อผิดพลาด', 'เกิดปัญหาในการประมวลผล กรุณาลองใหม่อีกครั้ง', 'error');
             }
+        fetch(API_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    body: JSON.stringify(newRecord)
+});
         }
 
         function updateHistoryTable() {
