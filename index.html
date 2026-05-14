@@ -1227,7 +1227,8 @@
             const apiKey = "AIzaSyBEohddzYDBk1ihbMJqrIo03dUhXjKBX0o"; 
             
             // 2. ใช้ชื่อโมเดล gemini-1.5-flash มาตรฐาน
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
+            // แก้ไขเป็นแบบนี้ (ใช้ v1 และ gemini-1.5-flash)
+            const apiUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
             // 3. โครงสร้าง Payload แบบมาตรฐานที่เรียบง่ายที่สุด
             const payload = {
