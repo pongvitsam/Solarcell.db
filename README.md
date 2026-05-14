@@ -1,0 +1,1 @@
+# Solarcell.db
