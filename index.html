@@ -827,7 +827,11 @@
                 
                 historyData.unshift(newRecord); // Add to beginning
                 updateHistoryTable();
-
+ fetch(API_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: JSON.stringify(newRecord)
+        });
                 // 7. Show Result
                 const isDark = document.documentElement.classList.contains('dark');
                 Swal.fire({
@@ -883,11 +887,7 @@
                     toggleRoofInput();
                 });
             // ส่งข้อมูลไป Google Sheets (ย้ายมาไว้ก่อนจบ try)
-        fetch(API_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            body: JSON.stringify(newRecord)
-        });
+       
 
     } catch (error) {
         console.error("Calculation Error:", error);
