@@ -1,0 +1,113 @@
+/* SolarSave — API + state (production) */
+(function () {
+  'use strict';
+
+  var CFG = typeof window !== 'undefined' && window.SOLARSAVE_CONFIG ? window.SOLARSAVE_CONFIG : {};
+  var GAS_WEB_APP_URL = String(CFG.GAS_WEB_APP_URL || '').trim();
+
+  window.__SOLARSAVE_GAS__ = {
+    url: function () { return GAS_WEB_APP_URL; },
+    call: function (action, extra) {
+      if (!GAS_WEB_APP_URL) return Promise.resolve({ ok: false, offline: true });
+      return fetch(GAS_WEB_APP_URL, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.assign({ action: action }, extra || {}))
+      }).then(function (res) { return res.text(); }).then(function (txt) {
+        try { return JSON.parse(txt); } catch (e) { return { ok: false, error: txt || 'parse' }; }
+      }).catch(function (err) { return { ok: false, error: String(err.message || err) }; });
+    },
+    loadAll: function () {
+      return window.__SOLARSAVE_GAS__.call('loadAll');
+    },
+    saveRecord: function (record) {
+      return window.__SOLARSAVE_GAS__.call('saveRecord', { record: record });
+    },
+    deleteRecord: function (id) {
+      return window.__SOLARSAVE_GAS__.call('deleteRecord', { id: id });
+    },
+    saveSettings: function (settings) {
+      return window.__SOLARSAVE_GAS__.call('saveSettings', { settings: settings });
+    },
+    saveStaffAccounts: function (staffAccounts) {
+      return window.__SOLARSAVE_GAS__.call('saveStaffAccounts', { staffAccounts: staffAccounts });
+    }
+  };
+})();
+
+// --- STATE MANAGEMENT ---
+const state = {
+  isLoggedIn: false,
+  user: null,
+  role: 'customer',
+  theme: 'light',
+  currentTab: 'dashboard',
+  settings: { rateNormal: 4.50, ratePeak: 5.7982, rateOffPeak: 2.6369, rateHoliday: 2.6369, ft: 0.3972, serviceFee: 312.24 },
+  staffAccounts: [
+    { id: '1', username: 'admin', password: 'password', role: 'admin' },
+    { id: '2', username: 'staff1', password: '123', role: 'staff' }
+  ],
+  records: [
+    { id: '1', inputMode: 'unit', location: 'โรงงาน A (กทม.)', month: '2023-01', phase: '3tou', rateNormal: 0, ratePeak: 5.7982, rateOffPeak: 2.6369, rateHoliday: 2.6369, ft: 0.3972, serviceFee: 312.24, discount: 20, grid: 2450, solar: 1500, touGrid: { peak: 1000, off: 1000, hol: 450 }, touSolar: { peak: 1200, off: 200, hol: 100 } },
+    { id: '2', inputMode: 'unit', location: 'โรงงาน A (กทม.)', month: '2023-02', phase: '3tou', rateNormal: 0, ratePeak: 5.7982, rateOffPeak: 2.6369, rateHoliday: 2.6369, ft: 0.3972, serviceFee: 312.24, discount: 20, grid: 2400, solar: 1600, touGrid: { peak: 900, off: 1100, hol: 400 }, touSolar: { peak: 1300, off: 200, hol: 100 } },
+    { id: '3', inputMode: 'unit', location: 'บ้านคุณกานต์ (นนทบุรี)', month: '2023-03', phase: '1', rateNormal: 4.5, ft: 0.3972, serviceFee: 38.22, discount: 15, grid: 500, solar: 300 },
+    { id: '4', inputMode: 'unit', location: 'บจก. คลีนเทค (ชลบุรี)', month: '2023-03', phase: '3', rateNormal: 4.5, ft: 0.3972, serviceFee: 312.24, discount: 25, grid: 3200, solar: 2500, gridData: { L1: 1000, L2: 1100, L3: 1100 }, solarData: { L1: 800, L2: 850, L3: 850 } }
+  ]
+};
+
+let myChart = null;
+let modalChartInstance = null;
+let fpMonth = null;
+let currentModalLoc = '';
+
+async function applyBackendPayload_(data) {
+  if (!data || !data.ok) return false;
+  if (data.settings && typeof data.settings === 'object') {
+    state.settings.rateNormal = Number(data.settings.rateNormal) || state.settings.rateNormal;
+    state.settings.ratePeak = Number(data.settings.ratePeak) || state.settings.ratePeak;
+    state.settings.rateOffPeak = Number(data.settings.rateOffPeak) || state.settings.rateOffPeak;
+    state.settings.rateHoliday = Number(data.settings.rateHoliday) || state.settings.rateHoliday;
+    state.settings.ft = Number(data.settings.ft) || state.settings.ft;
+    state.settings.serviceFee = Number(data.settings.serviceFee) || state.settings.serviceFee;
+  }
+  if (Array.isArray(data.staffAccounts)) state.staffAccounts = data.staffAccounts;
+  if (Array.isArray(data.records)) {
+    state.records = data.records.map(function (raw) { return calculateFinancials(raw); });
+  }
+  return true;
+}
+
+async function loadBackendData() {
+  var r = await window.__SOLARSAVE_GAS__.loadAll();
+  if (r.offline) return false;
+  if (r.ok) {
+    await applyBackendPayload_(r);
+    return true;
+  }
+  showToast('โหลดจาก Google Sheet ไม่สำเร็จ');
+  return false;
+}
+
+async function backendSaveRecord(rec) {
+  if (!window.__SOLARSAVE_GAS__.url()) return;
+  var r = await window.__SOLARSAVE_GAS__.saveRecord(rec);
+  if (!r.ok) showToast('บันทึกลง Sheet ไม่สำเร็จ');
+}
+
+async function backendDeleteRecord(id) {
+  if (!window.__SOLARSAVE_GAS__.url()) return;
+  await window.__SOLARSAVE_GAS__.deleteRecord(id);
+}
+
+async function backendSaveSettings() {
+  if (!window.__SOLARSAVE_GAS__.url()) return;
+  var r = await window.__SOLARSAVE_GAS__.saveSettings(Object.assign({}, state.settings));
+  if (!r.ok) showToast('บันทึกตั้งค่า Sheet ไม่สำเร็จ');
+}
+
+async function backendSaveStaff() {
+  if (!window.__SOLARSAVE_GAS__.url()) return;
+  var r = await window.__SOLARSAVE_GAS__.saveStaffAccounts(state.staffAccounts.slice());
+  if (!r.ok) showToast('บันทึกบัญชี Staff ลง Sheet ไม่สำเร็จ');
+}
