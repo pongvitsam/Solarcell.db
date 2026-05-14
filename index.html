@@ -1108,7 +1108,45 @@
             item.installCost = install;
             item.totalCost = newTotal;
         }
+            function resetDefaultCost(index) {
+            const item = historyData[index];
+            if (!item) return;
 
+            // คำนวณค่ามาตรฐานใหม่จากขนาด (kWp)
+            // มาตรฐาน: 30,000 บาท/kWp -> แผง 40%, อินเวอร์เตอร์ 25%, ติดตั้ง 35%
+            const defaultTotal = item.size * 30000;
+            const defaultPanel = defaultTotal * 0.40;
+            const defaultInverter = defaultTotal * 0.25;
+            const defaultInstall = defaultTotal * 0.35;
+
+            // หาช่อง Input ในหน้าจอ
+            const panelInput = document.getElementById(`edit-panel-${index}`);
+            const inverterInput = document.getElementById(`edit-inverter-${index}`);
+            const installInput = document.getElementById(`edit-install-${index}`);
+
+            // ถ้าเจอช่อง Input ให้เปลี่ยนค่ากลับเป็นค่ามาตรฐาน
+            if (panelInput && inverterInput && installInput) {
+                panelInput.value = defaultPanel;
+                inverterInput.value = defaultInverter;
+                installInput.value = defaultInstall;
+
+                // เรียกใช้ฟังก์ชันคำนวณใหม่เพื่ออัปเดตตัวเลขหน้าจอและบันทึกค่ากลับ
+                recalculatePayback(index);
+                
+                // แจ้งเตือนว่าคืนค่าแล้ว
+                Swal.fire({
+                    title: 'คืนค่าเริ่มต้นแล้ว',
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    showConfirmButton: false,
+                    timer: 1500,
+                    background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
+                    color: document.documentElement.classList.contains('dark') ? '#fff' : '#374151',
+                });
+            }
+        }
+        // ----------------------------------------
         // --- ฟังก์ชันใหม่: เรียกใช้งาน Gemini API ---
         async function generateAIReport(index) {
             const item = historyData[index];
