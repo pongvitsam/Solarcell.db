@@ -9,11 +9,13 @@
     url: function () { return GAS_WEB_APP_URL; },
     call: function (action, extra) {
       if (!GAS_WEB_APP_URL) return Promise.resolve({ ok: false, offline: true });
+      var payload = JSON.stringify(Object.assign({ action: action }, extra || {}));
       return fetch(GAS_WEB_APP_URL, {
         method: 'POST',
         mode: 'cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(Object.assign({ action: action }, extra || {}))
+        redirect: 'follow',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: payload
       }).then(function (res) { return res.text(); }).then(function (txt) {
         try { return JSON.parse(txt); } catch (e) { return { ok: false, error: txt || 'parse' }; }
       }).catch(function (err) { return { ok: false, error: String(err.message || err) }; });
@@ -85,14 +87,19 @@ async function loadBackendData() {
     await applyBackendPayload_(r);
     return true;
   }
-  showToast('โหลดจาก Google Sheet ไม่สำเร็จ');
+  showToast('โหลดจาก Google Sheet ไม่สำเร็จ: ' + (r.error || 'unknown'));
   return false;
+}
+
+function backendErrorMsg_(r, fallback) {
+  if (!r || r.ok) return '';
+  return (r.error || fallback || 'unknown').toString().slice(0, 120);
 }
 
 async function backendSaveRecord(rec) {
   if (!window.__SOLARSAVE_GAS__.url()) return;
   var r = await window.__SOLARSAVE_GAS__.saveRecord(rec);
-  if (!r.ok) showToast('บันทึกลง Sheet ไม่สำเร็จ');
+  if (!r.ok) showToast('บันทึกลง Sheet ไม่สำเร็จ: ' + backendErrorMsg_(r, 'network'));
 }
 
 async function backendDeleteRecord(id) {
@@ -103,11 +110,11 @@ async function backendDeleteRecord(id) {
 async function backendSaveSettings() {
   if (!window.__SOLARSAVE_GAS__.url()) return;
   var r = await window.__SOLARSAVE_GAS__.saveSettings(Object.assign({}, state.settings));
-  if (!r.ok) showToast('บันทึกตั้งค่า Sheet ไม่สำเร็จ');
+  if (!r.ok) showToast('บันทึกตั้งค่า Sheet ไม่สำเร็จ: ' + backendErrorMsg_(r, 'network'));
 }
 
 async function backendSaveStaff() {
   if (!window.__SOLARSAVE_GAS__.url()) return;
   var r = await window.__SOLARSAVE_GAS__.saveStaffAccounts(state.staffAccounts.slice());
-  if (!r.ok) showToast('บันทึกบัญชี Staff ลง Sheet ไม่สำเร็จ');
+  if (!r.ok) showToast('บันทึกบัญชี Staff ลง Sheet ไม่สำเร็จ: ' + backendErrorMsg_(r, 'network'));
 }

@@ -53,14 +53,14 @@ function ensureSheets_() {
   if (!sh) {
     sh = ss.insertSheet('Settings');
     sh.getRange(1, 1, 1, 6).setValues([['rateNormal', 'ratePeak', 'rateOffPeak', 'rateHoliday', 'ft', 'serviceFee']]);
-    sh.getRange(2, 1, 2, 6).setValues([[4.5, 5.7982, 2.6369, 2.6369, 0.3972, 312.24]]);
+    sh.getRange(2, 1, 1, 6).setValues([[4.5, 5.7982, 2.6369, 2.6369, 0.3972, 312.24]]);
   }
 
   sh = ss.getSheetByName('Staff');
   if (!sh) {
     sh = ss.insertSheet('Staff');
     sh.getRange(1, 1, 1, 4).setValues([['id', 'username', 'password', 'role']]);
-    sh.getRange(2, 1, 3, 4).setValues([
+    sh.getRange(2, 1, 2, 4).setValues([
       ['1', 'admin', 'password', 'admin'],
       ['2', 'staff1', '123', 'staff']
     ]);
@@ -137,7 +137,7 @@ function saveSettings_(settings) {
   if (!settings || typeof settings !== 'object') return { ok: false, error: 'Missing settings' };
   var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   var sh = ss.getSheetByName('Settings');
-  sh.getRange(2, 1, 2, 6).setValues([[
+  sh.getRange(2, 1, 1, 6).setValues([[
     Number(settings.rateNormal),
     Number(settings.ratePeak),
     Number(settings.rateOffPeak),
@@ -158,7 +158,7 @@ function saveStaffAccounts_(list) {
   var rows = list.map(function (a) {
     return [String(a.id), String(a.username), String(a.password), String(a.role)];
   });
-  sh.getRange(2, 1, 1 + rows.length, 4).setValues(rows);
+  sh.getRange(2, 1, rows.length, 4).setValues(rows);
   return { ok: true };
 }
 
@@ -178,7 +178,7 @@ function saveRecord_(record) {
   if (rowIndex === -1) {
     sh.appendRow([String(record.id), json]);
   } else {
-    sh.getRange(rowIndex, 1, rowIndex, 2).setValues([[String(record.id), json]]);
+    sh.getRange(rowIndex, 1, 1, 2).setValues([[String(record.id), json]]);
   }
   return { ok: true };
 }
