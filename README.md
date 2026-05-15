@@ -37,3 +37,12 @@ npm run push
 เปิดไฟล์ `index.html` ในเบราว์เซอร์ หรือใช้เซิร์ฟเวอร์สแตติก เช่น `npx serve .`
 
 สำหรับแอปบิล (โฟลเดอร์ Solarsave): `npx serve Solarsave` แล้วเปิดหน้าแรกของ Solarsave
+
+### GitHub Pages ยังเห็นหน้าเก่า?
+
+1. Repo → **Settings → Pages → Build and deployment**  
+   - แนะนำ: **Source = GitHub Actions** (workflow `Deploy SolarSave`)  
+   - หรือ: **Deploy from branch** → branch `main` → folder **`/Solarsave`** (ไม่ใช่ `/ (root)`)
+2. รอ workflow เขียว 1–2 นาที แล้วเปิดเว็บแบบ **hard refresh** (Ctrl+Shift+R)
+3. หน้าใหม่มี title **「ระบบจัดการบิลค่าไฟ (Grid + Solar)」** และหน้า login เลือก ผู้ใช้ไฟ / เจ้าหน้าที่  
+   หน้าเก่า (ประมาณการโซล่า) อยู่ที่ `legacy/index.html` เท่านั้น
