@@ -104,6 +104,7 @@ function viewCustomerHistory(loc) {
 function updateLocationFilterOptions() {
   const s1 = document.getElementById('dashLocationFilter');
   const s2 = document.getElementById('historyFilter');
+  if (!s1 || !s2) return;
   const cur1 = s1.value;
   const cur2 = s2.value;
   const locs = Array.from(new Set(getRecordsForView().map(function (r) { return r.location; }))).sort();

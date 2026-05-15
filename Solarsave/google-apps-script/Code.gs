@@ -247,7 +247,7 @@ function loginCustomer_(login, password) {
   var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   var list = readCustomersWithPassword_(ss);
   for (var i = 0; i < list.length; i++) {
-    if (list[i].login.toLowerCase() === key && list[i].password === String(password)) {
+    if (list[i].login.toLowerCase() === key && String(list[i].password).trim() === String(password).trim()) {
       return {
         ok: true,
         customer: {

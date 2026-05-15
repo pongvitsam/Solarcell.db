@@ -46,14 +46,67 @@ function clearSession_() {
   window.__SOLARSAVE_SESSION__.clear();
 }
 
-function enterCustomerSession_(customer) {
+function showAppShell_() {
+  const loginView = document.getElementById('loginView');
+  const appView = document.getElementById('appView');
+  if (loginView) {
+    loginView.style.display = 'none';
+    loginView.classList.add('hidden');
+    loginView.setAttribute('aria-hidden', 'true');
+  }
+  if (appView) {
+    appView.classList.remove('hidden');
+    appView.style.display = 'flex';
+    appView.setAttribute('aria-hidden', 'false');
+  }
+}
+
+function mergeCustomerIntoState_(customer) {
+  if (!customer || !customer.id) return;
+  const idx = state.customers.findIndex(function (c) { return String(c.id) === String(customer.id); });
+  const row = {
+    id: String(customer.id),
+    login: customer.login || '',
+    displayName: customer.displayName || customer.login || '',
+    location: customer.location || ''
+  };
+  if (idx >= 0) state.customers[idx] = Object.assign({}, state.customers[idx], row);
+  else state.customers.push(row);
+}
+
+async function enterCustomerSession_(customer, successMessage) {
   state.isLoggedIn = true;
   state.role = 'customer';
   state.currentCustomer = customer;
   state.user = customer.displayName || customer.login;
+  mergeCustomerIntoState_(customer);
   persistSession_();
+
+  showAppShell_();
   setupUIByRole();
-  showToast('เข้าสู่ระบบสำเร็จ');
+
+  await loadBackendData();
+  if (state.currentCustomer && state.currentCustomer.id) {
+    const fresh = state.customers.find(function (c) { return String(c.id) === String(state.currentCustomer.id); });
+    if (fresh) state.currentCustomer = fresh;
+  }
+  if (typeof recalculateAllRecords === 'function') recalculateAllRecords();
+  refreshCustomerDashboard_();
+
+  if (successMessage) showToast(successMessage);
+}
+
+function refreshCustomerDashboard_() {
+  try {
+    if (typeof refreshLocationDatalists_ === 'function') refreshLocationDatalists_();
+    if (typeof updateLocationFilterOptions === 'function') updateLocationFilterOptions();
+    if (typeof updateDashboardCards === 'function') updateDashboardCards();
+    if (typeof renderTable === 'function') renderTable();
+    switchTab('dashboard');
+  } catch (err) {
+    console.error('refreshCustomerDashboard_', err);
+    showToast('เข้าระบบแล้ว แต่โหลดข้อมูลบางส่วนไม่ครบ — ลองรีเฟรชหน้า');
+  }
 }
 
 async function handleCustomerLogin(e) {
@@ -68,9 +121,12 @@ async function handleCustomerLogin(e) {
     showToast('ระบบยังไม่เชื่อมต่อเซิร์ฟเวอร์ (ตั้งค่า GAS_WEB_APP_URL)');
     return;
   }
+  const submitBtn = e.target && e.target.querySelector ? e.target.querySelector('button[type="submit"]') : null;
+  if (submitBtn) submitBtn.disabled = true;
   const r = await window.__SOLARSAVE_GAS__.loginCustomer(login, password);
+  if (submitBtn) submitBtn.disabled = false;
   if (r.ok && r.customer) {
-    enterCustomerSession_(r.customer);
+    await enterCustomerSession_(r.customer, 'เข้าสู่ระบบสำเร็จ');
     return;
   }
   showToast(r.error || 'เข้าสู่ระบบไม่สำเร็จ');
@@ -90,15 +146,17 @@ async function handleCustomerRegister(e) {
     showToast('ระบบยังไม่เชื่อมต่อเซิร์ฟเวอร์');
     return;
   }
+  const submitBtn = e.target && e.target.querySelector ? e.target.querySelector('button[type="submit"]') : null;
+  if (submitBtn) submitBtn.disabled = true;
   const r = await window.__SOLARSAVE_GAS__.registerCustomer({
     login: login,
     password: password,
     displayName: displayName || login,
     location: location
   });
+  if (submitBtn) submitBtn.disabled = false;
   if (r.ok && r.customer) {
-    showToast('สมัครสมาชิกสำเร็จ');
-    enterCustomerSession_(r.customer);
+    await enterCustomerSession_(r.customer, 'สมัครสมาชิกสำเร็จ — ยินดีต้อนรับ');
     return;
   }
   showToast(r.error || 'สมัครสมาชิกไม่สำเร็จ');
@@ -127,6 +185,7 @@ async function handleLogin(e) {
     state.role = foundUser.role;
     state.currentCustomer = null;
     persistSession_();
+    showAppShell_();
     setupUIByRole();
     showToast('เข้าสู่ระบบสำเร็จ (' + foundUser.role.toUpperCase() + ')');
   } else {
@@ -148,16 +207,20 @@ function setupUIByRole() {
   if (billWrap) billWrap.classList.toggle('hidden', state.role === 'customer');
   if (state.role !== 'customer' && typeof refreshBillCustomerOptions_ === 'function') refreshBillCustomerOptions_();
 
-  document.getElementById('loginView').style.display = 'none';
-  document.getElementById('appView').classList.remove('hidden');
+  showAppShell_();
 
   scheduleUiRefresh_(function () {
-    if (typeof refreshLocationDatalists_ === 'function') refreshLocationDatalists_();
-    updateLocationFilterOptions();
-    updateDashboardCards();
-    renderTable();
-    renderCustomerTab();
-    switchTab('dashboard');
+    try {
+      if (typeof refreshLocationDatalists_ === 'function') refreshLocationDatalists_();
+      if (typeof refreshBillCustomerOptions_ === 'function') refreshBillCustomerOptions_();
+      if (typeof updateLocationFilterOptions === 'function') updateLocationFilterOptions();
+      if (typeof updateDashboardCards === 'function') updateDashboardCards();
+      if (typeof renderTable === 'function') renderTable();
+      if (typeof renderCustomerTab === 'function') renderCustomerTab();
+      switchTab(state.role === 'customer' ? 'dashboard' : (state.currentTab || 'dashboard'));
+    } catch (err) {
+      console.error('setupUIByRole refresh', err);
+    }
   });
 }
 
@@ -166,9 +229,18 @@ function handleLogout() {
   state.user = null;
   state.currentCustomer = null;
   clearSession_();
-  document.getElementById('appView').classList.add('hidden');
+  const appView = document.getElementById('appView');
+  const loginView = document.getElementById('loginView');
+  if (appView) {
+    appView.classList.add('hidden');
+    appView.style.display = '';
+  }
+  if (loginView) {
+    loginView.classList.remove('hidden');
+    loginView.style.display = 'flex';
+    loginView.setAttribute('aria-hidden', 'false');
+  }
   switchLoginState('select');
-  document.getElementById('loginView').style.display = 'flex';
   const uf = document.getElementById('username');
   const pf = document.getElementById('password');
   if (uf) uf.value = '';
@@ -208,7 +280,9 @@ function toggleSidebar() {
 function switchTab(tabId) {
   state.currentTab = tabId;
   document.querySelectorAll('.tab-content').forEach(function (el) { el.classList.add('hidden'); });
-  document.getElementById('tab-' + tabId).classList.remove('hidden');
+  const tabEl = document.getElementById('tab-' + tabId);
+  if (!tabEl) return;
+  tabEl.classList.remove('hidden');
   document.querySelectorAll('.nav-btn').forEach(function (btn) {
     btn.classList.remove('bg-primary-500/20', 'text-primary-700', 'dark:text-primary-300');
     btn.classList.add('text-gray-600', 'dark:text-gray-300');
