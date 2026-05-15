@@ -1,12 +1,38 @@
 /* --- LOGIN & ROLE UI --- */
 var _loadingOverlayDepth_ = 0;
+var _swalLoadingOpen_ = false;
+
+function swalTheme_() {
+  var dark = document.documentElement.classList.contains('dark');
+  return {
+    background: dark ? '#1e293b' : '#ffffff',
+    color: dark ? '#f1f5f9' : '#1f2937'
+  };
+}
 
 function showLoadingOverlay_(message) {
+  var title = message || 'กำลังโหลด...';
+  if (typeof Swal !== 'undefined') {
+    _swalLoadingOpen_ = true;
+    Swal.fire({
+      title: title,
+      html: '<p style="font-size:0.9rem;opacity:0.85;margin:0">กรุณารอสักครู่</p>',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      customClass: { popup: 'rounded-2xl', title: 'font-sans' },
+      ...swalTheme_(),
+      didOpen: function () {
+        Swal.showLoading();
+      }
+    });
+    return;
+  }
   var el = document.getElementById('loadingOverlay');
   var msg = document.getElementById('loadingOverlayMsg');
   if (!el) return;
   _loadingOverlayDepth_++;
-  if (msg && message) msg.textContent = message;
+  if (msg) msg.textContent = title;
   el.classList.remove('hidden');
   el.classList.add('flex');
   el.setAttribute('aria-busy', 'true');
@@ -14,11 +40,21 @@ function showLoadingOverlay_(message) {
 }
 
 function setLoadingOverlayMessage_(message) {
+  if (!message) return;
+  if (typeof Swal !== 'undefined' && (_swalLoadingOpen_ || Swal.isVisible())) {
+    Swal.update({ title: message });
+    return;
+  }
   var msg = document.getElementById('loadingOverlayMsg');
-  if (msg && message) msg.textContent = message;
+  if (msg) msg.textContent = message;
 }
 
 function hideLoadingOverlay_() {
+  if (typeof Swal !== 'undefined' && (_swalLoadingOpen_ || Swal.isVisible())) {
+    _swalLoadingOpen_ = false;
+    Swal.close();
+    return;
+  }
   var el = document.getElementById('loadingOverlay');
   if (!el) return;
   _loadingOverlayDepth_ = Math.max(0, _loadingOverlayDepth_ - 1);
@@ -106,7 +142,7 @@ function mergeCustomerIntoState_(customer) {
 
 async function enterCustomerSession_(customer, successMessage, opts) {
   var manageLoading = !(opts && opts.skipLoading);
-  if (manageLoading) showLoadingOverlay_('กำลังโหลดข้อมูล...');
+  if (manageLoading) showLoadingOverlay_('กำลังดาวน์โหลดข้อมูล...');
   try {
     state.isLoggedIn = true;
     state.role = 'customer';
@@ -163,7 +199,7 @@ async function handleCustomerLogin(e) {
   try {
     const r = await window.__SOLARSAVE_GAS__.loginCustomer(login, password);
     if (r.ok && r.customer) {
-      setLoadingOverlayMessage_('กำลังโหลดข้อมูล...');
+      setLoadingOverlayMessage_('กำลังดาวน์โหลดข้อมูล...');
       await enterCustomerSession_(r.customer, 'เข้าสู่ระบบสำเร็จ', { skipLoading: true });
       return;
     }
@@ -227,7 +263,7 @@ async function handleLogin(e) {
   showLoadingOverlay_('กำลังเข้าสู่ระบบ...');
   if (submitBtn) submitBtn.disabled = true;
   try {
-    setLoadingOverlayMessage_('กำลังโหลดข้อมูลจากระบบ...');
+    setLoadingOverlayMessage_('กำลังดาวน์โหลดข้อมูล...');
     await loadBackendData();
     const foundUser = state.staffAccounts.find(function (acc) {
       return acc.username === u && acc.password === p;
