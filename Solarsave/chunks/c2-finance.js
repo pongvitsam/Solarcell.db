@@ -1,4 +1,4 @@
-function recalculateMockData() {
+function recalculateAllRecords() {
   state.records = state.records.map(function (r) { return calculateFinancials(r); });
 }
 

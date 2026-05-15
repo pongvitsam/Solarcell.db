@@ -39,6 +39,8 @@ function handleRequest_(p) {
     if (action === 'deleteRecord') return jsonOut_(deleteRecord_(p.id));
     if (action === 'saveSettings') return jsonOut_(saveSettings_(p.settings));
     if (action === 'saveStaffAccounts') return jsonOut_(saveStaffAccounts_(p.staffAccounts));
+    if (action === 'registerCustomer') return jsonOut_(registerCustomer_(p.customer));
+    if (action === 'loginCustomer') return jsonOut_(loginCustomer_(p.login, p.password));
     return jsonOut_({ ok: false, error: 'Unknown action: ' + action });
   } catch (err) {
     return jsonOut_({ ok: false, error: String(err && err.message ? err.message : err) });
@@ -61,9 +63,14 @@ function ensureSheets_() {
     sh = ss.insertSheet('Staff');
     sh.getRange(1, 1, 1, 4).setValues([['id', 'username', 'password', 'role']]);
     sh.getRange(2, 1, 2, 4).setValues([
-      ['1', 'admin', 'password', 'admin'],
-      ['2', 'staff1', '123', 'staff']
+      ['1', 'admin', '1234', 'admin']
     ]);
+  }
+
+  sh = ss.getSheetByName('Customers');
+  if (!sh) {
+    sh = ss.insertSheet('Customers');
+    sh.getRange(1, 1, 1, 6).setValues([['id', 'login', 'password', 'displayName', 'location', 'createdAt']]);
   }
 
   sh = ss.getSheetByName('Records');
@@ -78,7 +85,8 @@ function loadAll_() {
   var settings = readSettings_(ss);
   var staffAccounts = readStaff_(ss);
   var records = readRecords_(ss);
-  return { ok: true, settings: settings, staffAccounts: staffAccounts, records: records };
+  var customers = readCustomers_(ss);
+  return { ok: true, settings: settings, staffAccounts: staffAccounts, records: records, customers: customers };
 }
 
 function readSettings_(ss) {
@@ -160,6 +168,98 @@ function saveStaffAccounts_(list) {
   });
   sh.getRange(2, 1, rows.length, 4).setValues(rows);
   return { ok: true };
+}
+
+function readCustomers_(ss) {
+  var sh = ss.getSheetByName('Customers');
+  if (!sh) return [];
+  var data = sh.getDataRange().getValues();
+  var out = [];
+  for (var r = 1; r < data.length; r++) {
+    if (!data[r][0] || !data[r][1]) continue;
+    out.push({
+      id: String(data[r][0]),
+      login: String(data[r][1]),
+      displayName: String(data[r][3] || ''),
+      location: String(data[r][4] || ''),
+      createdAt: String(data[r][5] || '')
+    });
+  }
+  return out;
+}
+
+function readCustomersWithPassword_(ss) {
+  var sh = ss.getSheetByName('Customers');
+  if (!sh) return [];
+  var data = sh.getDataRange().getValues();
+  var out = [];
+  for (var r = 1; r < data.length; r++) {
+    if (!data[r][0] || !data[r][1]) continue;
+    out.push({
+      id: String(data[r][0]),
+      login: String(data[r][1]),
+      password: String(data[r][2] || ''),
+      displayName: String(data[r][3] || ''),
+      location: String(data[r][4] || ''),
+      createdAt: String(data[r][5] || '')
+    });
+  }
+  return out;
+}
+
+function registerCustomer_(customer) {
+  if (!customer || !customer.login || !customer.password) {
+    return { ok: false, error: 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน' };
+  }
+  var login = String(customer.login).trim();
+  if (!login) return { ok: false, error: 'ชื่อผู้ใช้ไม่ถูกต้อง' };
+  var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var list = readCustomersWithPassword_(ss);
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].login.toLowerCase() === login.toLowerCase()) {
+      return { ok: false, error: 'ชื่อผู้ใช้นี้มีในระบบแล้ว' };
+    }
+  }
+  var id = String(Date.now());
+  var sh = ss.getSheetByName('Customers');
+  sh.appendRow([
+    id,
+    login,
+    String(customer.password),
+    String(customer.displayName || login),
+    String(customer.location || ''),
+    new Date().toISOString()
+  ]);
+  return {
+    ok: true,
+    customer: {
+      id: id,
+      login: login,
+      displayName: String(customer.displayName || login),
+      location: String(customer.location || '')
+    }
+  };
+}
+
+function loginCustomer_(login, password) {
+  if (!login || !password) return { ok: false, error: 'กรุณากรอกชื่อผู้ใช้และรหัสผ่าน' };
+  var key = String(login).trim().toLowerCase();
+  var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var list = readCustomersWithPassword_(ss);
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].login.toLowerCase() === key && list[i].password === String(password)) {
+      return {
+        ok: true,
+        customer: {
+          id: list[i].id,
+          login: list[i].login,
+          displayName: list[i].displayName,
+          location: list[i].location
+        }
+      };
+    }
+  }
+  return { ok: false, error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' };
 }
 
 function saveRecord_(record) {

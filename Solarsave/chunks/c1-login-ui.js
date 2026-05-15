@@ -1,4 +1,4 @@
-/* --- LOGIN & ROLE UI SWITCHER --- */
+/* --- LOGIN & ROLE UI --- */
 function switchLoginState(targetState) {
   const sel = document.getElementById('roleSelectState');
   const cust = document.getElementById('customerLoginState');
@@ -11,39 +11,135 @@ function switchLoginState(targetState) {
     const t = targetState === 'customer' ? cust : (targetState === 'staff' ? staff : sel);
     t.classList.remove('opacity-0', 'scale-95', 'pointer-events-none');
     t.classList.add('opacity-100', 'scale-100');
+    if (targetState === 'customer') switchCustomerAuthTab('login');
   }, 300);
 }
 
-function handleCustomerMockLogin(e) {
-  e.preventDefault();
-  state.isLoggedIn = true;
-  state.user = 'คุณลูกค้า (Mockup)';
-  state.role = 'customer';
-  setupUIByRole();
-  showToast('เข้าสู่ระบบสำเร็จ (ฐานะลูกค้า)');
+function switchCustomerAuthTab(tab) {
+  const loginPanel = document.getElementById('customerAuthLogin');
+  const regPanel = document.getElementById('customerAuthRegister');
+  const tabLogin = document.getElementById('custTabLogin');
+  const tabReg = document.getElementById('custTabRegister');
+  if (!loginPanel || !regPanel) return;
+  if (tab === 'register') {
+    loginPanel.classList.add('hidden');
+    regPanel.classList.remove('hidden');
+    tabReg.classList.add('bg-white', 'dark:bg-gray-700', 'shadow', 'text-primary-600');
+    tabLogin.classList.remove('bg-white', 'dark:bg-gray-700', 'shadow', 'text-primary-600');
+  } else {
+    regPanel.classList.add('hidden');
+    loginPanel.classList.remove('hidden');
+    tabLogin.classList.add('bg-white', 'dark:bg-gray-700', 'shadow', 'text-primary-600');
+    tabReg.classList.remove('bg-white', 'dark:bg-gray-700', 'shadow', 'text-primary-600');
+  }
 }
 
-function handleLogin(e) {
-  e.preventDefault();
-  const u = document.getElementById('username').value;
-  const p = document.getElementById('password').value;
-  const foundUser = state.staffAccounts.find(function (acc) { return acc.username === u && acc.password === p; });
+function persistSession_() {
+  window.__SOLARSAVE_SESSION__.save({
+    role: state.role,
+    user: state.user,
+    currentCustomer: state.currentCustomer
+  });
+}
 
+function clearSession_() {
+  window.__SOLARSAVE_SESSION__.clear();
+}
+
+function enterCustomerSession_(customer) {
+  state.isLoggedIn = true;
+  state.role = 'customer';
+  state.currentCustomer = customer;
+  state.user = customer.displayName || customer.login;
+  persistSession_();
+  setupUIByRole();
+  showToast('เข้าสู่ระบบสำเร็จ');
+}
+
+async function handleCustomerLogin(e) {
+  e.preventDefault();
+  const login = document.getElementById('custLoginId').value.trim();
+  const password = document.getElementById('custLoginPassword').value;
+  if (!login || !password) {
+    showToast('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน');
+    return;
+  }
+  if (!window.__SOLARSAVE_GAS__.url()) {
+    showToast('ระบบยังไม่เชื่อมต่อเซิร์ฟเวอร์ (ตั้งค่า GAS_WEB_APP_URL)');
+    return;
+  }
+  const r = await window.__SOLARSAVE_GAS__.loginCustomer(login, password);
+  if (r.ok && r.customer) {
+    enterCustomerSession_(r.customer);
+    return;
+  }
+  showToast(r.error || 'เข้าสู่ระบบไม่สำเร็จ');
+}
+
+async function handleCustomerRegister(e) {
+  e.preventDefault();
+  const login = document.getElementById('custRegLogin').value.trim();
+  const password = document.getElementById('custRegPassword').value;
+  const displayName = document.getElementById('custRegName').value.trim();
+  const location = document.getElementById('custRegLocation').value.trim();
+  if (!login || !password) {
+    showToast('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน');
+    return;
+  }
+  if (!window.__SOLARSAVE_GAS__.url()) {
+    showToast('ระบบยังไม่เชื่อมต่อเซิร์ฟเวอร์');
+    return;
+  }
+  const r = await window.__SOLARSAVE_GAS__.registerCustomer({
+    login: login,
+    password: password,
+    displayName: displayName || login,
+    location: location
+  });
+  if (r.ok && r.customer) {
+    showToast('สมัครสมาชิกสำเร็จ');
+    enterCustomerSession_(r.customer);
+    return;
+  }
+  showToast(r.error || 'สมัครสมาชิกไม่สำเร็จ');
+}
+
+function handleCustomerForgotPassword(e) {
+  if (e) e.preventDefault();
+  showToast('กรุณาติดต่อเจ้าหน้าที่การไฟฟ้าเพื่อรีเซ็ตรหัสผ่าน');
+}
+
+async function handleLogin(e) {
+  e.preventDefault();
+  const u = document.getElementById('username').value.trim();
+  const p = document.getElementById('password').value;
+  if (!u || !p) {
+    showToast('กรุณากรอก Username และ Password');
+    return;
+  }
+  await loadBackendData();
+  const foundUser = state.staffAccounts.find(function (acc) {
+    return acc.username === u && acc.password === p;
+  });
   if (foundUser) {
     state.isLoggedIn = true;
     state.user = foundUser.username;
     state.role = foundUser.role;
+    state.currentCustomer = null;
+    persistSession_();
     setupUIByRole();
     showToast('เข้าสู่ระบบสำเร็จ (' + foundUser.role.toUpperCase() + ')');
   } else {
-    alert('Username หรือ Password ไม่ถูกต้อง!');
+    showToast('Username หรือ Password ไม่ถูกต้อง');
   }
 }
 
 function setupUIByRole() {
   document.getElementById('displayUsername').innerText = state.user;
-  document.getElementById('displayUserInitials').innerText = state.user.charAt(0).toUpperCase();
-  document.getElementById('displayUserRole').innerText = state.role === 'admin' ? 'Administrator' : (state.role === 'staff' ? 'เจ้าหน้าที่การไฟฟ้า' : 'ผู้ใช้ไฟฟ้า');
+  document.getElementById('displayUserInitials').innerText = (state.user || 'U').charAt(0).toUpperCase();
+  document.getElementById('displayUserRole').innerText = state.role === 'admin'
+    ? 'Administrator'
+    : (state.role === 'staff' ? 'เจ้าหน้าที่การไฟฟ้า' : 'ผู้ใช้ไฟฟ้า');
 
   document.getElementById('nav-calculator').style.display = state.role === 'customer' ? 'none' : 'flex';
   document.getElementById('nav-customers').style.display = state.role === 'customer' ? 'none' : 'flex';
@@ -51,14 +147,59 @@ function setupUIByRole() {
 
   document.getElementById('loginView').style.display = 'none';
   document.getElementById('appView').classList.remove('hidden');
+
+  if (state.role === 'customer' && state.currentCustomer) {
+    const loc = (state.currentCustomer.location || '').trim();
+    if (!loc) {
+      showToast('บัญชีของคุณยังไม่ผูกสถานที่ — ติดต่อเจ้าหน้าที่การไฟฟ้า');
+    }
+  }
+
+  updateLocationFilterOptions();
+  updateDashboardCards();
+  renderTable();
+  renderCustomerTab();
   switchTab('dashboard');
 }
 
 function handleLogout() {
   state.isLoggedIn = false;
+  state.user = null;
+  state.currentCustomer = null;
+  clearSession_();
   document.getElementById('appView').classList.add('hidden');
   switchLoginState('select');
   document.getElementById('loginView').style.display = 'flex';
+  const uf = document.getElementById('username');
+  const pf = document.getElementById('password');
+  if (uf) uf.value = '';
+  if (pf) pf.value = '';
+}
+
+async function restoreSessionIfAny_() {
+  const s = window.__SOLARSAVE_SESSION__.load();
+  if (!s || !s.role) return false;
+  await loadBackendData();
+  if (s.role === 'customer' && s.currentCustomer) {
+    const c = state.customers.find(function (x) { return x.id === s.currentCustomer.id; });
+    state.currentCustomer = c || s.currentCustomer;
+    state.isLoggedIn = true;
+    state.role = 'customer';
+    state.user = state.currentCustomer.displayName || state.currentCustomer.login;
+    setupUIByRole();
+    return true;
+  }
+  if (s.role === 'admin' || s.role === 'staff') {
+    const acc = state.staffAccounts.find(function (x) { return x.username === s.user; });
+    if (!acc) return false;
+    state.isLoggedIn = true;
+    state.role = acc.role;
+    state.user = acc.username;
+    state.currentCustomer = null;
+    setupUIByRole();
+    return true;
+  }
+  return false;
 }
 
 function toggleSidebar() {
@@ -79,9 +220,17 @@ function switchTab(tabId) {
     activeBtn.classList.add('bg-primary-500/20', 'text-primary-700', 'dark:text-primary-300');
   }
 
-  const titles = { dashboard: 'แดชบอร์ดสรุปผล', calculator: 'คำนวณ & บันทึกค่าไฟ', history: 'ประวัติข้อมูลรวม', customers: 'ข้อมูลผู้ใช้ไฟ', settings: 'ตั้งค่าส่วนกลางระบบ' };
+  const titles = {
+    dashboard: 'แดชบอร์ดสรุปผล',
+    calculator: 'คำนวณ & บันทึกค่าไฟ',
+    history: 'ประวัติข้อมูลรวม',
+    customers: 'ข้อมูลผู้ใช้ไฟ',
+    settings: 'ตั้งค่าส่วนกลางระบบ'
+  };
   document.getElementById('pageTitle').innerText = titles[tabId];
   if (tabId === 'dashboard') initDashboardChart();
+  if (tabId === 'history') renderTable();
+  if (tabId === 'customers') renderCustomerTab();
   if (window.innerWidth < 768) toggleSidebar();
 }
 
@@ -171,9 +320,13 @@ function resetStaffForm() {
 async function handleSaveStaff(e) {
   e.preventDefault();
   const id = document.getElementById('staffEditId').value;
-  const u = document.getElementById('staffUsername').value;
+  const u = document.getElementById('staffUsername').value.trim();
   const p = document.getElementById('staffPassword').value;
   const r = document.getElementById('staffRole').value;
+  if (!u || !p) {
+    showToast('กรุณากรอก Username และ Password');
+    return;
+  }
   if (id) {
     const idx = state.staffAccounts.findIndex(function (x) { return x.id === id; });
     state.staffAccounts[idx] = { id: id, username: u, password: p, role: r };

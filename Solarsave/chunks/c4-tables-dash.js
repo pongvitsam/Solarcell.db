@@ -2,7 +2,7 @@ function renderCustomerTab() {
   const tb = document.getElementById('customersTableBody');
   tb.innerHTML = '';
   const grouped = {};
-  state.records.forEach(function (r) {
+  getRecordsForView().forEach(function (r) {
     if (!grouped[r.location]) grouped[r.location] = [];
     grouped[r.location].push(r);
   });
@@ -28,7 +28,8 @@ function renderTable() {
   const tb = document.getElementById('historyTableBody');
   tb.innerHTML = '';
   const filter = document.getElementById('historyFilter').value;
-  let displayRecs = filter === 'ALL' ? state.records : state.records.filter(function (r) { return r.location === filter; });
+  const viewRecs = getRecordsForView();
+  let displayRecs = filter === 'ALL' ? viewRecs : viewRecs.filter(function (r) { return r.location === filter; });
   if (!displayRecs.length) {
     document.getElementById('emptyState').classList.remove('hidden');
     return;
@@ -105,7 +106,22 @@ function updateLocationFilterOptions() {
   const s2 = document.getElementById('historyFilter');
   const cur1 = s1.value;
   const cur2 = s2.value;
-  const locs = Array.from(new Set(state.records.map(function (r) { return r.location; }))).sort();
+  const locs = Array.from(new Set(getRecordsForView().map(function (r) { return r.location; }))).sort();
+
+  if (state.role === 'customer' && state.currentCustomer) {
+    const loc = (state.currentCustomer.location || '').trim();
+    const opt = loc
+      ? '<option value="' + loc.replace(/"/g, '&quot;') + '">📍 ' + loc + '</option>'
+      : '<option value="">— ยังไม่ผูกสถานที่ —</option>';
+    s1.innerHTML = opt;
+    s2.innerHTML = opt;
+    if (loc) {
+      s1.value = loc;
+      s2.value = loc;
+    }
+    return;
+  }
+
   const html = '<option value="ALL">🌍 ทุกสถานที่รวมกันทั้งหมด</option>' + locs.map(function (l) { return '<option value="' + l.replace(/"/g, '&quot;') + '">📍 ' + l + '</option>'; }).join('');
   s1.innerHTML = html;
   s2.innerHTML = html;
@@ -115,10 +131,10 @@ function updateLocationFilterOptions() {
 
 function updateDashboardCards() {
   const filterLoc = document.getElementById('dashLocationFilter').value;
-  let displayRecords = state.records;
+  let displayRecords = getRecordsForView();
 
   if (filterLoc !== 'ALL') {
-    displayRecords = state.records.filter(function (r) { return r.location === filterLoc; });
+    displayRecords = displayRecords.filter(function (r) { return r.location === filterLoc; });
     document.getElementById('dashChartTitle').innerText = 'ภาพรวมพลังงานและการประหยัด - ' + filterLoc;
   } else {
     document.getElementById('dashChartTitle').innerText = 'ภาพรวมพลังงานและการประหยัด (Solar vs Grid)';
@@ -149,14 +165,14 @@ function updateLeaderboard() {
   const tbody = document.getElementById('leaderboardBody');
   const filterLoc = document.getElementById('dashLocationFilter').value;
 
-  if (filterLoc !== 'ALL') {
+  if (filterLoc !== 'ALL' || state.role === 'customer') {
     sec.classList.add('hidden');
     return;
   }
   sec.classList.remove('hidden');
 
   const stats = {};
-  state.records.forEach(function (r) {
+  getRecordsForView().forEach(function (r) {
     if (!stats[r.location]) stats[r.location] = { saved: 0, solar: 0 };
     stats[r.location].saved += (r.valZ || 0);
     stats[r.location].solar += (r.solar || 0);

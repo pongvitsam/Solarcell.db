@@ -1,5 +1,5 @@
 function initDashboardChart(recordsToDisplay, filterLoc) {
-  if (recordsToDisplay === undefined) recordsToDisplay = state.records;
+  if (recordsToDisplay === undefined) recordsToDisplay = getRecordsForView();
   if (filterLoc === undefined) filterLoc = (document.getElementById('dashLocationFilter') && document.getElementById('dashLocationFilter').value) || 'ALL';
   const canvas = document.getElementById('savingsChart');
   if (!canvas) return;
@@ -84,7 +84,7 @@ function openLocationSummary(loc) {
   currentModalLoc = loc;
   document.getElementById('modalSubtitle').innerText = loc;
 
-  const recs = state.records.filter(function (r) { return r.location === loc; }).sort(function (a, b) { return b.month.localeCompare(a.month); });
+  const recs = getRecordsForView().filter(function (r) { return r.location === loc; }).sort(function (a, b) { return b.month.localeCompare(a.month); });
   let mHtml = '<option value="ALL">รวมทุกเดือน (สะสม)</option>';
   recs.forEach(function (r) { mHtml += '<option value="' + r.month + '">' + formatMonthThai(r.month) + '</option>'; });
   document.getElementById('modMonthFilter').innerHTML = mHtml;
@@ -112,7 +112,7 @@ function closeSummaryModal() {
 function filterModalSummary() {
   const loc = currentModalLoc;
   const filterMonth = document.getElementById('modMonthFilter').value;
-  let recs = state.records.filter(function (r) { return r.location === loc; });
+  let recs = getRecordsForView().filter(function (r) { return r.location === loc; });
   if (filterMonth !== 'ALL') recs = recs.filter(function (r) { return r.month === filterMonth; });
   recs.sort(function (a, b) { return a.month.localeCompare(b.month); });
 
@@ -223,14 +223,15 @@ function printCustomerReport() {
 }
 
 function exportToCSV() {
-  if (state.records.length === 0) {
-    alert('ไม่มีข้อมูลสำหรับ Export');
+  const exportRecs = getRecordsForView();
+  if (exportRecs.length === 0) {
+    showToast('ไม่มีข้อมูลสำหรับ Export');
     return;
   }
   let csvContent = 'data:text/csv;charset=utf-8,\uFEFF';
   csvContent += 'รอบบิล,สถานที่,ระบบไฟฟ้า,ส่วนลดโซล่า(%),การไฟฟ้า(kWh),โซล่าเซลล์(kWh),รวมลูกค้าชำระ(บาท),ประหยัดได้(บาท)\n';
 
-  state.records.forEach(function (r) {
+  exportRecs.forEach(function (r) {
     const row = r.month + ',' + r.location + ',' + r.phase + ',' + r.discount + ',' + (r.grid || 0).toFixed(2) + ',' + (r.solar || 0).toFixed(2) + ',' + (r.valX || 0).toFixed(2) + ',' + (r.valZ || 0).toFixed(2);
     csvContent += row + '\n';
   });
@@ -244,19 +245,16 @@ function exportToCSV() {
   document.body.removeChild(link);
 }
 
-document.addEventListener('DOMContentLoaded', async function () {
-  if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) toggleTheme(true);
-
-  await loadBackendData();
-  recalculateMockData();
-
-  fpMonth = flatpickr('#billMonth', {
-    locale: 'th',
-    plugins: [new monthSelectPlugin({ shorthand: true, dateFormat: 'Y-m', altFormat: 'F Y' })],
-    altInput: true,
-    altInputClass: 'glass-input w-full pl-10 pr-4 py-2.5 rounded-xl cursor-pointer text-gray-800 dark:text-gray-200 transition-all font-medium',
-    defaultDate: new Date()
-  });
+function initAppFormsAndTables_() {
+  if (!fpMonth && document.getElementById('billMonth')) {
+    fpMonth = flatpickr('#billMonth', {
+      locale: 'th',
+      plugins: [new monthSelectPlugin({ shorthand: true, dateFormat: 'Y-m', altFormat: 'F Y' })],
+      altInput: true,
+      altInputClass: 'glass-input w-full pl-10 pr-4 py-2.5 rounded-xl cursor-pointer text-gray-800 dark:text-gray-200 transition-all font-medium',
+      defaultDate: new Date()
+    });
+  }
   updateLocationFilterOptions();
   renderTable();
   updateDashboardCards();
@@ -264,4 +262,14 @@ document.addEventListener('DOMContentLoaded', async function () {
   resetForm();
   renderStaffTable();
   renderCustomerTab();
+}
+
+document.addEventListener('DOMContentLoaded', async function () {
+  if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) toggleTheme(true);
+
+  await loadBackendData();
+  recalculateAllRecords();
+  initAppFormsAndTables_();
+
+  await restoreSessionIfAny_();
 });

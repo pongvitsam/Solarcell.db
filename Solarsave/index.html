@@ -128,29 +128,54 @@
             </div>
         </div>
 
-        <!-- Customer Login State -->
-        <div id="customerLoginState" class="glass-panel rounded-3xl p-8 w-full max-w-md absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-0 scale-95 pointer-events-none transition-all duration-500">
-            <button onclick="switchLoginState('select')" class="absolute top-4 left-4 text-gray-500 hover:text-gray-800 dark:hover:text-white transition flex items-center"><i class="ph ph-arrow-left text-xl mr-1"></i> ย้อนกลับ</button>
-            <div class="text-center mt-6 mb-8">
+        <!-- Customer Login / Register -->
+        <div id="customerLoginState" class="glass-panel rounded-3xl p-8 w-full max-w-md absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-0 scale-95 pointer-events-none transition-all duration-500 max-h-[90vh] overflow-y-auto">
+            <button type="button" onclick="switchLoginState('select')" class="absolute top-4 left-4 text-gray-500 hover:text-gray-800 dark:hover:text-white transition flex items-center"><i class="ph ph-arrow-left text-xl mr-1"></i> ย้อนกลับ</button>
+            <div class="text-center mt-6 mb-4">
                 <i class="ph-fill ph-house-line text-5xl text-green-500 mb-3"></i>
-                <h2 class="text-2xl font-bold text-gray-900 dark:text-white">เข้าสู่ระบบ (ผู้ใช้ไฟฟ้า)</h2>
+                <h2 class="text-2xl font-bold text-gray-900 dark:text-white">ผู้ใช้ไฟฟ้า</h2>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">ใช้อีเมล เบอร์โทร หรือชื่อผู้ใช้ที่ตั้งเองได้</p>
             </div>
-            <form onsubmit="handleCustomerMockLogin(event)">
-                <div class="space-y-4">
+            <div class="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl mb-6">
+                <button type="button" id="custTabLogin" onclick="switchCustomerAuthTab('login')" class="flex-1 py-2 rounded-lg text-sm font-medium bg-white dark:bg-gray-700 shadow text-primary-600">เข้าสู่ระบบ</button>
+                <button type="button" id="custTabRegister" onclick="switchCustomerAuthTab('register')" class="flex-1 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-300">สมัครสมาชิก</button>
+            </div>
+            <div id="customerAuthLogin">
+                <form onsubmit="handleCustomerLogin(event)" class="space-y-4">
                     <div>
-                        <div class="relative"><i class="ph ph-envelope-simple absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500"></i><input type="email" class="glass-input w-full pl-10 pr-4 py-3 rounded-xl" placeholder="อีเมลของคุณ" required></div>
+                        <label class="block text-sm font-medium mb-1 dark:text-gray-300">ชื่อผู้ใช้ / อีเมล / เบอร์โทร</label>
+                        <div class="relative"><i class="ph ph-user absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500"></i><input type="text" id="custLoginId" autocomplete="username" class="glass-input w-full pl-10 pr-4 py-3 rounded-xl" placeholder="อะไรก็ได้ที่จำง่าย" required></div>
                     </div>
                     <div>
-                        <div class="relative"><i class="ph ph-lock-key absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500"></i><input type="password" class="glass-input w-full pl-10 pr-4 py-3 rounded-xl" placeholder="รหัสผ่าน" required></div>
-                        <div class="text-right mt-2"><a href="#" onclick="alert('ระบบจะส่งลิงก์รีเซ็ตรหัสผ่านไปยังอีเมลของคุณ (Mockup)')" class="text-sm text-green-600 dark:text-green-400 hover:underline">ลืมรหัสผ่าน?</a></div>
+                        <label class="block text-sm font-medium mb-1 dark:text-gray-300">รหัสผ่าน</label>
+                        <div class="relative"><i class="ph ph-lock-key absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500"></i><input type="password" id="custLoginPassword" autocomplete="current-password" class="glass-input w-full pl-10 pr-4 py-3 rounded-xl" placeholder="รหัสผ่าน" required></div>
+                        <div class="text-right mt-2"><a href="#" onclick="handleCustomerForgotPassword(event)" class="text-sm text-green-600 dark:text-green-400 hover:underline">ลืมรหัสผ่าน?</a></div>
                     </div>
-                    <button type="submit" class="w-full bg-gray-800 hover:bg-gray-900 text-white font-medium py-3 rounded-xl shadow-lg transition hover:-translate-y-1">เข้าสู่ระบบด้วยอีเมล</button>
-                    <div class="flex items-center justify-center space-x-2 py-2"><div class="h-px bg-gray-300 dark:bg-gray-700 w-full"></div><span class="text-sm text-gray-500 whitespace-nowrap">หรือ</span><div class="h-px bg-gray-300 dark:bg-gray-700 w-full"></div></div>
-                    <button type="button" onclick="handleCustomerMockLogin(event)" class="w-full bg-line hover:bg-line-dark text-white font-medium py-3 rounded-xl shadow-lg transition hover:-translate-y-1 flex items-center justify-center">
-                        <i class="ph-fill ph-chat-circle text-xl mr-2"></i> เข้าสู่ระบบด้วย LINE
-                    </button>
-                </div>
-            </form>
+                    <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-3 rounded-xl shadow-lg transition hover:-translate-y-1">เข้าสู่ระบบ</button>
+                </form>
+            </div>
+            <div id="customerAuthRegister" class="hidden">
+                <form onsubmit="handleCustomerRegister(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1 dark:text-gray-300">ชื่อผู้ใช้ / อีเมล / เบอร์โทร <span class="text-red-500">*</span></label>
+                        <input type="text" id="custRegLogin" autocomplete="username" class="glass-input w-full px-4 py-3 rounded-xl" placeholder="ตั้งชื่อเข้าใช้งาน" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1 dark:text-gray-300">รหัสผ่าน <span class="text-red-500">*</span></label>
+                        <input type="password" id="custRegPassword" autocomplete="new-password" class="glass-input w-full px-4 py-3 rounded-xl" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1 dark:text-gray-300">ชื่อที่แสดง (ไม่บังคับ)</label>
+                        <input type="text" id="custRegName" class="glass-input w-full px-4 py-3 rounded-xl" placeholder="เช่น คุณสมชาย">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1 dark:text-gray-300">สถานที่ในระบบบิล <span class="text-red-500">*</span></label>
+                        <input type="text" id="custRegLocation" class="glass-input w-full px-4 py-3 rounded-xl" placeholder="ต้องตรงกับชื่อที่เจ้าหน้าที่บันทึก" required>
+                        <p class="text-xs text-gray-500 mt-1">ใช้ดูบิลเฉพาะสถานที่นี้</p>
+                    </div>
+                    <button type="submit" class="w-full bg-primary-600 hover:bg-primary-700 text-white font-medium py-3 rounded-xl shadow-lg transition hover:-translate-y-1">สมัครสมาชิก</button>
+                </form>
+            </div>
         </div>
 
         <!-- Staff Login State -->
@@ -164,11 +189,11 @@
                 <div class="space-y-4">
                     <div>
                         <label class="block text-sm font-medium mb-1 dark:text-gray-300">Username</label>
-                        <div class="relative"><i class="ph ph-user absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500"></i><input type="text" id="username" class="glass-input w-full pl-10 pr-4 py-3 rounded-xl transition-all" value="admin" required></div>
+                        <div class="relative"><i class="ph ph-user absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500"></i><input type="text" id="username" class="glass-input w-full pl-10 pr-4 py-3 rounded-xl transition-all" autocomplete="username" placeholder="Username" required></div>
                     </div>
                     <div>
                         <label class="block text-sm font-medium mb-1 dark:text-gray-300">Password</label>
-                        <div class="relative"><i class="ph ph-lock-key absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500"></i><input type="password" id="password" class="glass-input w-full pl-10 pr-4 py-3 rounded-xl transition-all" value="password" required></div>
+                        <div class="relative"><i class="ph ph-lock-key absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500"></i><input type="password" id="password" class="glass-input w-full pl-10 pr-4 py-3 rounded-xl transition-all" autocomplete="current-password" placeholder="Password" required></div>
                     </div>
                     <div class="pt-4"><button type="submit" class="w-full bg-gradient-to-r from-primary-600 to-primary-400 hover:from-primary-700 text-white font-medium py-3 rounded-xl shadow-lg transition hover:-translate-y-1">เข้าสู่ระบบ (Staff)</button></div>
                     <p class="text-xs text-center text-gray-500 mt-4">* กรณีลืมรหัสผ่าน กรุณาติดต่อ Admin ฝ่าย IT เท่านั้น</p>
