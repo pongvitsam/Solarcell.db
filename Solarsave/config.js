@@ -9,5 +9,5 @@
  */
 window.SOLARSAVE_CONFIG = {
   /** ตัวอย่าง: "https://script.google.com/macros/s/AKfycb.../exec" */
-  GAS_WEB_APP_URL: ''
+  GAS_WEB_APP_URL: 'https://script.google.com/macros/s/AKfycbwK-4A54QIhuNkglilm8y8d1gi-B_o2GCGlY6t16VUaYmwcygw5wtjiJWyIqtjaBn4N_g/exec'
 };
