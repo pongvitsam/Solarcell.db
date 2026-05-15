@@ -110,15 +110,22 @@ function updateLocationFilterOptions() {
 
   if (state.role === 'customer' && state.currentCustomer) {
     const loc = (state.currentCustomer.location || '').trim();
-    const opt = loc
-      ? '<option value="' + loc.replace(/"/g, '&quot;') + '">📍 ' + loc + '</option>'
-      : '<option value="">— ยังไม่ผูกสถานที่ —</option>';
-    s1.innerHTML = opt;
-    s2.innerHTML = opt;
+    const cid = String(state.currentCustomer.id || '');
     if (loc) {
+      const opt = '<option value="' + loc.replace(/"/g, '&quot;') + '">📍 ' + loc + '</option>';
+      s1.innerHTML = opt;
+      s2.innerHTML = opt;
       s1.value = loc;
       s2.value = loc;
+      return;
     }
+    const mine = state.records.filter(function (r) { return String(r.customerId || '') === cid; });
+    const label = (state.currentCustomer.displayName || state.currentCustomer.login || 'บัญชีของฉัน').replace(/"/g, '&quot;');
+    const opt = '<option value="ALL">📋 ' + label + ' (' + mine.length + ' รายการ)</option>';
+    s1.innerHTML = opt;
+    s2.innerHTML = opt;
+    s1.value = 'ALL';
+    s2.value = 'ALL';
     return;
   }
 

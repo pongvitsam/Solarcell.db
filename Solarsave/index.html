@@ -70,6 +70,14 @@
         .dark .glass-input { background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255, 255, 255, 0.1); color: #f1f5f9; }
         .glass-input:focus { outline: none; border-color: #8b5cf6; box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.3); background: rgba(255, 255, 255, 0.9); }
         .dark .glass-input:focus { background: rgba(30, 41, 59, 0.8); }
+
+        .calc-fee-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; align-items: end; }
+        @media (max-width: 640px) { .calc-fee-row { grid-template-columns: 1fr; } }
+        .calc-fee-field label { display: block; min-height: 2.75rem; line-height: 1.35; margin-bottom: 0.35rem; }
+        .calc-fee-field input { height: 2.75rem; box-sizing: border-box; width: 100%; }
+        .calc-fee-field .input-with-suffix { position: relative; }
+        .calc-fee-field .input-with-suffix input { padding-right: 2rem; }
+        .calc-fee-field .input-with-suffix .suffix { position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); color: #6b7280; pointer-events: none; }
         
         .bg-line { background-color: #00B900; }
         .hover\:bg-line-dark:hover { background-color: #009900; }
@@ -80,15 +88,44 @@
         ::-webkit-scrollbar-thumb:hover { background: rgba(139, 92, 246, 0.8); }
 
         @media print {
-            .no-print { display: none !important; }
+            @page { size: A4 portrait; margin: 8mm; }
+            .no-print, .print-hide { display: none !important; }
             .bg-shapes { display: none; }
-            .glass-panel { background: white; border: 1px solid #ccc; box-shadow: none; filter: none; color: black; }
-            body { background: white; color: black; }
+            .glass-panel { background: white !important; border: 1px solid #ddd; box-shadow: none !important; filter: none; color: black !important; }
+            body { background: white !important; color: black !important; font-size: 9pt; }
             body.printing-modal #appView, body.printing-modal #loginView { display: none !important; }
             body.printing-modal { background: white !important; }
-            body.printing-modal #summaryModal { position: absolute; top: 0; left: 0; width: 100%; height: auto; display: block !important; opacity: 1 !important; background: transparent !important; padding: 0 !important; overflow: visible !important; }
-            body.printing-modal #summaryModalContent { transform: none !important; max-height: none !important; overflow: visible !important; box-shadow: none !important; border: none !important; padding: 0 !important; max-w-full: 100% !important; }
-            body.printing-modal canvas { max-height: 400px !important; }
+            body.printing-modal #summaryModal {
+                position: static !important; display: block !important; opacity: 1 !important;
+                background: white !important; padding: 0 !important; overflow: visible !important;
+                width: 100% !important; height: auto !important;
+            }
+            body.printing-modal #summaryModalContent {
+                transform: none !important; max-height: none !important; overflow: visible !important;
+                box-shadow: none !important; border: none !important; padding: 0 !important;
+                width: 100% !important; max-width: 100% !important; font-size: 8.5pt;
+            }
+            body.printing-modal #summaryModalContent h3 { font-size: 14pt !important; margin: 0 0 4px !important; }
+            body.printing-modal #summaryModalContent .print-summary-top { margin-bottom: 6px !important; padding-bottom: 4px !important; }
+            body.printing-modal #summaryModalContent .print-kpi-row {
+                display: grid !important; grid-template-columns: repeat(3, 1fr) !important;
+                gap: 4px !important; margin-bottom: 6px !important;
+            }
+            body.printing-modal #summaryModalContent .print-kpi-row > div { padding: 6px !important; }
+            body.printing-modal #summaryModalContent .print-kpi-row .text-4xl,
+            body.printing-modal #summaryModalContent .print-kpi-row .text-3xl { font-size: 11pt !important; }
+            body.printing-modal #summaryModalContent .print-cards-grid {
+                display: grid !important; grid-template-columns: repeat(3, 1fr) !important;
+                gap: 3px !important; margin-bottom: 4px !important;
+            }
+            body.printing-modal #summaryModalContent .print-cards-grid > div {
+                padding: 4px !important; break-inside: avoid; page-break-inside: avoid;
+            }
+            body.printing-modal #summaryModalContent .print-cards-grid .h-10 { height: auto !important; min-height: 0 !important; }
+            body.printing-modal #summaryModalContent .print-cards-grid .text-lg,
+            body.printing-modal #summaryModalContent .print-cards-grid .text-xl,
+            body.printing-modal #summaryModalContent .print-cards-grid .text-2xl { font-size: 9pt !important; }
+            body.printing-modal canvas { max-height: 95px !important; }
         }
     </style>
 </head>
@@ -169,9 +206,10 @@
                         <input type="text" id="custRegName" class="glass-input w-full px-4 py-3 rounded-xl" placeholder="เช่น คุณสมชาย">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium mb-1 dark:text-gray-300">สถานที่ในระบบบิล <span class="text-red-500">*</span></label>
-                        <input type="text" id="custRegLocation" class="glass-input w-full px-4 py-3 rounded-xl" placeholder="ต้องตรงกับชื่อที่เจ้าหน้าที่บันทึก" required>
-                        <p class="text-xs text-gray-500 mt-1">ใช้ดูบิลเฉพาะสถานที่นี้</p>
+                        <label class="block text-sm font-medium mb-1 dark:text-gray-300">สถานที่ในระบบบิล (ไม่บังคับ)</label>
+                        <input type="text" id="custRegLocation" list="custRegLocationList" class="glass-input w-full px-4 py-3 rounded-xl" placeholder="ถ้ามี — ต้องตรงกับชื่อในรายการบิล" autocomplete="off">
+                        <datalist id="custRegLocationList"></datalist>
+                        <p class="text-xs text-gray-500 mt-1">เว้นว่างได้ — เจ้าหน้าที่ต้องเลือกผูกบัญชีตอนบันทึกบิล คุณจะเห็นเฉพาะบิลของตัวเอง</p>
                     </div>
                     <button type="submit" class="w-full bg-primary-600 hover:bg-primary-700 text-white font-medium py-3 rounded-xl shadow-lg transition hover:-translate-y-1">สมัครสมาชิก</button>
                 </form>
@@ -335,7 +373,15 @@
                         <form id="calcForm" onsubmit="handleCalculate(event)">
                             <input type="hidden" id="editId" value="">
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                                <div><label class="block text-sm font-medium mb-1 dark:text-gray-300">สถานที่ / ลูกค้า <span class="text-red-500">*</span></label><input type="text" id="location" class="glass-input w-full px-4 py-2.5 rounded-xl" required></div>
+                                <div><label class="block text-sm font-medium mb-1 dark:text-gray-300">สถานที่ / ลูกค้า <span class="text-red-500">*</span></label><input type="text" id="location" list="locationList" class="glass-input w-full px-4 py-2.5 rounded-xl" placeholder="พิมพ์หรือเลือกจากรายการเดิม" required autocomplete="off"><datalist id="locationList"></datalist></div>
+
+                                <div id="billCustomerWrap" class="hidden mb-4">
+                                    <label class="block text-sm font-medium mb-1 dark:text-gray-300">ผูกบัญชีลูกค้า <span class="text-gray-400 font-normal">(กรณีลูกค้าไม่ระบุสถานที่ตอนสมัคร)</span></label>
+                                    <select id="billCustomerId" class="glass-input w-full px-4 py-2.5 rounded-xl text-sm">
+                                        <option value="">— อัตโนมัติจากชื่อสถานที่ —</option>
+                                    </select>
+                                </div>
+
                                 <div><label class="block text-sm font-medium mb-1 dark:text-gray-300">รอบบิล (เดือน/ปี) <span class="text-red-500">*</span></label>
                                     <div class="relative"><i class="ph ph-calendar-blank absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-lg pointer-events-none"></i><input type="text" id="billMonth" class="glass-input w-full pl-10 pr-4 py-2.5 rounded-xl cursor-pointer" placeholder="เลือกเดือน/ปี" required></div>
                                 </div>
@@ -358,10 +404,22 @@
                                         <div><label class="block text-sm font-medium mb-1 text-teal-600 dark:text-teal-400">Holiday <span class="text-red-500">*</span></label><input type="number" step="0.0001" id="rateHoliday" class="glass-input w-full px-3 py-2.5 rounded-xl border-l-4 border-l-teal-500"></div>
                                     </div>
                                 </div>
-                                <div class="lg:col-span-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                    <div><label class="block text-sm font-medium mb-1 dark:text-gray-300">ค่า Ft <span class="text-red-500">*</span></label><input type="number" step="0.0001" id="ftRate" class="glass-input w-full px-3 py-2.5 rounded-xl border-l-4 border-l-blue-500" required></div>
-                                    <div><label class="block text-sm font-medium mb-1 dark:text-gray-300">ค่าบริการรายเดือน <span class="text-red-500">*</span></label><input type="number" step="0.01" id="serviceFee" class="glass-input w-full px-3 py-2.5 rounded-xl border-l-4 border-l-gray-400" required></div>
-                                    <div><label class="block text-sm font-medium mb-1 dark:text-gray-300">ส่วนลดโซล่า <span class="text-red-500">*</span></label><div class="relative"><input type="number" step="0.1" id="discountPercent" class="glass-input w-full px-3 py-2.5 rounded-xl border-l-4 border-l-green-500 font-bold" required><span class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500">%</span></div></div>
+                                <div class="lg:col-span-5 calc-fee-row">
+                                    <div class="calc-fee-field">
+                                        <label class="text-sm font-medium dark:text-gray-300">ค่า Ft <span class="text-red-500">*</span></label>
+                                        <input type="number" step="0.0001" id="ftRate" class="glass-input px-3 rounded-xl border-l-4 border-l-blue-500" required>
+                                    </div>
+                                    <div class="calc-fee-field">
+                                        <label class="text-sm font-medium dark:text-gray-300">ค่าบริการรายเดือน <span class="text-red-500">*</span></label>
+                                        <input type="number" step="0.01" id="serviceFee" class="glass-input px-3 rounded-xl border-l-4 border-l-gray-400" required>
+                                    </div>
+                                    <div class="calc-fee-field">
+                                        <label class="text-sm font-medium dark:text-gray-300">ส่วนลดโซล่า <span class="text-red-500">*</span></label>
+                                        <div class="input-with-suffix">
+                                            <input type="number" step="0.1" id="discountPercent" class="glass-input px-3 rounded-xl border-l-4 border-l-green-500 font-bold" required>
+                                            <span class="suffix">%</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -525,7 +583,7 @@
     <!-- Modal: Chart Summary -->
     <div id="summaryModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-gray-900/80 backdrop-blur-sm p-4 opacity-0 transition-opacity duration-300">
         <div class="glass-panel w-full max-w-6xl rounded-3xl p-6 md:p-8 relative max-h-[95vh] overflow-y-auto transform scale-95 transition-transform duration-300" id="summaryModalContent">
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-gray-200 dark:border-gray-700 pb-4 mb-6">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-gray-200 dark:border-gray-700 pb-4 mb-6 print-summary-top">
                 <div>
                     <span class="px-3 py-1 bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300 rounded-full text-xs font-bold mb-3 inline-block"><i class="ph-fill ph-file-text mr-1"></i> Customer Energy Report</span>
                     <h3 class="text-2xl md:text-3xl font-bold dark:text-white">รายงานสรุปความประหยัดพลังงาน</h3>
@@ -544,14 +602,14 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 print-kpi-row">
                 <div class="p-6 rounded-2xl bg-gradient-to-br from-green-500/20 to-emerald-500/5 border border-green-500/30 relative overflow-hidden"><div class="absolute -right-4 -bottom-4 opacity-10 text-green-600"><i class="ph-fill ph-piggy-bank text-8xl"></i></div><p class="text-sm font-semibold text-green-800 dark:text-green-400">คุณประหยัดไปได้ (สะสม)</p><div class="font-bold text-green-600 dark:text-green-400 text-4xl mt-1" id="modCustTotalSaved">฿0.00</div></div>
                 <div class="p-6 rounded-2xl bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800/50"><p class="text-sm font-semibold text-yellow-800 dark:text-yellow-500 flex justify-between">ผลิตใช้เอง (สะสม) <i class="ph-fill ph-sun text-xl"></i></p><div class="font-bold text-gray-800 dark:text-white text-3xl mt-2" id="modCustTotalSolarUnits">0 kWh</div></div>
                 <div class="p-6 rounded-2xl bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800/50"><p class="text-sm font-semibold text-blue-800 dark:text-blue-400 flex justify-between">ยอดชำระรวม (สะสม) <i class="ph-fill ph-wallet text-xl"></i></p><div class="font-bold text-gray-800 dark:text-white text-3xl mt-2" id="modCustTotalPaid">฿0.00</div></div>
             </div>
 
             <h4 class="font-bold text-lg dark:text-white mb-4 border-b border-gray-200 dark:border-gray-700 pb-2"><i class="ph-fill ph-info mr-2 text-primary-500"></i> ที่มาของผลการประหยัด</h4>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6 print-cards-grid">
                 <div class="p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm"><div class="text-xs text-gray-500 font-bold mb-1">A</div><div class="text-sm text-gray-700 dark:text-gray-300 leading-tight h-10">ค่าไฟจาก การไฟฟ้า (Grid)<br><span class="text-[10px]">(รวม VAT และบริการ)</span></div><div class="font-bold text-lg text-blue-600 dark:text-blue-400 mt-2" id="modCardA">฿0.00</div></div>
                 <div class="p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm"><div class="text-xs text-gray-500 font-bold mb-1">B</div><div class="text-sm text-gray-700 dark:text-gray-300 leading-tight h-10">มูลค่าไฟ โซล่าเซลล์ เต็มราคา<br><span class="text-[10px]">(เรทปกติ ยังไม่หักส่วนลด)</span></div><div class="font-bold text-lg text-gray-800 dark:text-gray-200 mt-2" id="modCardB">฿0.00</div></div>
                 <div class="p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm"><div class="text-xs text-gray-500 font-bold mb-1">C</div><div class="text-sm text-gray-700 dark:text-gray-300 leading-tight h-10">ค่าไฟ โซล่าเซลล์ ที่จ่ายจริง<br><span class="text-[10px]">(หักส่วนลด <span id="modCardC_Disc">0</span>% แล้ว ไม่รวม Ft)</span></div><div class="font-bold text-lg text-purple-600 dark:text-purple-400 mt-2" id="modCardC">฿0.00</div></div>
@@ -566,7 +624,7 @@
                 <div class="p-5 border-t border-gray-200 dark:border-gray-700 text-sm bg-white dark:bg-gray-900/50" id="modCalcExplanation"></div>
             </details>
 
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 print-hide">
                 <div class="bg-white/50 dark:bg-gray-800/50 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 lg:col-span-2"><h4 class="font-bold text-gray-800 dark:text-white mb-4">กราฟประวัติการชำระค่าไฟ (รายเดือน)</h4><div class="h-[350px] w-full"><canvas id="modalChart"></canvas></div></div>
                 <div class="p-6 rounded-2xl bg-gray-50 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 space-y-4"><h4 class="font-bold text-gray-800 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-3 flex items-center"><i class="ph-fill ph-chart-bar mr-2 text-primary-500"></i> สถิติภาพรวม</h4>
                     <div class="text-sm space-y-3">
@@ -591,6 +649,7 @@
     <script src="chunks/c2-finance.js"></script>
     <script src="chunks/c3-forms.js"></script>
     <script src="chunks/c4-tables-dash.js"></script>
+    <script src="chunks/c6-utils.js"></script>
     <script src="chunks/c5-charts-bootstrap.js"></script>
 
 </body>

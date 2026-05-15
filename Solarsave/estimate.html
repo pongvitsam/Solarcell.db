@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="th" class="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SolarSave — ประเมินขนาดโซล่าเซลล์</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = { darkMode: 'class', theme: { extend: { fontFamily: { sans: ['Prompt','sans-serif'] }, colors: { primary: { 50:'#faf5ff',100:'#f3e8ff',200:'#e9d5ff',300:'#d8b4fe',400:'#c084fc',500:'#8b5cf6',600:'#7c3aed',700:'#6d28d9',800:'#5b21b6',900:'#4c1d95' } } } } };
+  </script>
+  <style>
+    .glass-panel { background: rgba(255,255,255,0.85); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.6); }
+    .dark .glass-panel { background: rgba(15,23,42,0.85); border-color: rgba(255,255,255,0.1); color: #f1f5f9; }
+  </style>
+</head>
+<body class="bg-primary-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100 min-h-screen antialiased">
+  <header class="glass-panel sticky top-0 z-30 border-b border-primary-100 dark:border-gray-700 px-4 py-4 flex items-center justify-between">
+    <a href="index.html" class="flex items-center gap-2 text-primary-600 dark:text-primary-400 font-medium hover:underline"><i class="fa-solid fa-arrow-left"></i> กลับหน้าหลัก SolarSave</a>
+    <button type="button" onclick="document.documentElement.classList.toggle('dark')" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"><i class="fa-solid fa-moon dark:hidden"></i><i class="fa-solid fa-sun hidden dark:inline"></i></button>
+  </header>
+  <main class="max-w-5xl mx-auto p-4 md:p-8 pb-16">
+    <div class="text-center mb-8">
+      <h1 class="text-3xl font-bold dark:text-white">ประเมินขนาดโซล่าเซลล์</h1>
+      <p class="text-gray-500 dark:text-gray-400 mt-2">เครื่องมือจาก SolarSave เดิม — ทดลองได้โดยไม่ต้องล็อกอิน ประวัติเก็บในเบราว์เซอร์ของคุณ</p>
+    </div>
+<!-- Calculator Tab -->
+            <div id="estimatorPanel" class="block max-w-4xl mx-auto">
+                <div class="bg-white dark:bg-gray-800 rounded-3xl shadow-lg border border-primary-100 dark:border-gray-700 overflow-hidden">
+                    <div class="bg-gradient-to-r from-primary-500 to-primary-600 p-6 text-white text-center relative overflow-hidden">
+                        <i class="fa-solid fa-sun absolute -top-4 -right-4 text-7xl text-white/20 animate-pulse"></i>
+                        <h3 class="text-2xl font-bold mb-2 relative z-10">คำนวณขนาดโซล่าเซลล์</h3>
+                        <p class="text-primary-100 font-light relative z-10">กรอกข้อมูลสถานที่และค่าไฟฟ้า เพื่อหาจุดคุ้มทุนที่ดีที่สุด</p>
+                    </div>
+                    
+                    <form id="calcForm" class="p-6 md:p-8 space-y-8">
+                        
+                        <!-- ชื่อสถานที่ -->
+                        <div class="space-y-3">
+                            <label class="block text-gray-700 dark:text-gray-200 font-semibold text-lg flex items-center gap-2">
+                                <i class="fa-solid fa-location-dot text-primary-500"></i> ชื่อสถานที่ / โครงการ
+                            </label>
+                            <input type="text" id="locationName" required placeholder="เช่น บ้านคุณสมชาย, ออฟฟิศสาขา 1" class="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors shadow-inner">
+                        </div>
+
+                        <!-- ค่าไฟหลายเดือน -->
+                        <div class="bg-primary-50/50 dark:bg-gray-900/50 p-5 rounded-2xl border border-primary-100 dark:border-gray-700">
+                            <div class="flex justify-between items-center mb-4">
+                                <label class="block text-gray-700 dark:text-gray-200 font-semibold text-lg flex items-center gap-2">
+                                    <i class="fa-solid fa-file-invoice-dollar text-primary-500"></i> บิลค่าไฟฟ้าย้อนหลัง
+                                </label>
+                                <button type="button" onclick="addBill()" class="text-sm bg-primary-100 hover:bg-primary-200 text-primary-700 dark:bg-primary-900 dark:hover:bg-primary-800 dark:text-primary-300 px-3 py-1.5 rounded-lg transition-colors font-medium">
+                                    <i class="fa-solid fa-plus"></i> เพิ่มเดือน
+                                </button>
+                            </div>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">* แนะนำให้กรอกค่าไฟ 3-6 เดือนย้อนหลัง เพื่อให้ระบบหาค่าเฉลี่ยที่แม่นยำที่สุด</p>
+                            
+                            <div id="billsContainer" class="space-y-3 max-h-60 overflow-y-auto pr-2">
+                                <!-- Bill Item 1 -->
+                                <div class="flex items-center gap-3 bill-item">
+                                    <div class="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-900/50 text-primary-600 dark:text-primary-400 flex items-center justify-center font-bold text-sm shrink-0">1</div>
+                                    <div class="relative flex-1">
+                                        <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-gray-500">฿</span>
+                                        <input type="number" oninput="calculateAverageBill()" required min="1" placeholder="ค่าไฟเดือนที่ 1" class="bill-input w-full pl-8 pr-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors shadow-sm">
+                                    </div>
+                                    <button type="button" class="w-10 h-10 rounded-xl text-gray-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/30 transition-colors shrink-0" disabled>
+                                        <i class="fa-solid fa-lock"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="mt-4 pt-4 border-t border-primary-200 dark:border-gray-700 flex justify-between items-center bg-white dark:bg-gray-800 p-3 rounded-xl shadow-sm">
+                                <span class="font-medium text-gray-600 dark:text-gray-300">ค่าไฟฟ้าเฉลี่ยต่อเดือน:</span>
+                                <span class="text-xl font-bold text-primary-600 dark:text-primary-400">฿<span id="displayAverageBill">0.00</span></span>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="space-y-3">
+                                <label class="block text-gray-700 dark:text-gray-200 font-semibold flex items-center gap-2">
+                                    <i class="fa-solid fa-clock text-primary-500"></i> ลักษณะการใช้งาน
+                                </label>
+                                <div class="relative">
+                                    <select id="usageType" class="w-full appearance-none px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors shadow-inner cursor-pointer">
+                                        <option value="house">บ้านพักอาศัย (ใช้ไฟกลางวัน 50%)</option>
+                                        <option value="office">ออฟฟิศ/ร้านค้า (เน้นกลางวัน 75%)</option>
+                                        <option value="night">เน้นกลางคืนเป็นหลัก (ใช้กลางวัน 25%)</option>
+                                    </select>
+                                    <i class="fa-solid fa-chevron-down absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"></i>
+                                </div>
+                            </div>
+                            
+                            <div class="space-y-3">
+                                <label class="block text-gray-700 dark:text-gray-200 font-semibold flex items-center gap-2">
+                                    <i class="fa-solid fa-bolt text-primary-500"></i> เฟสไฟฟ้า
+                                </label>
+                                <div class="relative">
+                                    <select class="w-full appearance-none px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors shadow-inner cursor-pointer">
+                                        <option>1 เฟส (220V)</option>
+                                        <option>3 เฟส (380V)</option>
+                                        <option>ไม่แน่ใจ</option>
+                                    </select>
+                                    <i class="fa-solid fa-chevron-down absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- พื้นที่หลังคา -->
+                        <div class="bg-blue-50/50 dark:bg-blue-900/10 p-5 rounded-2xl border border-blue-100 dark:border-blue-900/30">
+                            <label class="block text-gray-700 dark:text-gray-200 font-semibold text-lg flex items-center gap-2 mb-2">
+                                <i class="fa-solid fa-house-chimney text-blue-500"></i> ข้อจำกัดพื้นที่หลังคา
+                            </label>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">* หากติดตั้งหลายอาคารในมิเตอร์เดียวกัน สามารถกด "+ เพิ่มหลังคา" มารวมกันได้</p>
+                            
+                            <div class="flex gap-4 mb-4">
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="radio" name="roofOption" value="no" checked onchange="toggleRoofInput()" class="text-primary-500 focus:ring-primary-500 w-4 h-4">
+                                    <span class="text-gray-700 dark:text-gray-300">ไม่ระบุ (คำนวณตามความคุ้มค่า)</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="radio" name="roofOption" value="yes" onchange="toggleRoofInput()" class="text-primary-500 focus:ring-primary-500 w-4 h-4">
+                                    <span class="text-gray-700 dark:text-gray-300">ระบุพื้นที่จำกัด</span>
+                                </label>
+                            </div>
+
+                            <div id="roofInputsContainer" class="hidden space-y-3">
+                                <div id="roofList" class="space-y-3">
+                                    <!-- Roof Item 1 -->
+                                    <div class="flex items-center gap-3 roof-item">
+                                        <div class="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-sm shrink-0">A</div>
+                                        <div class="relative flex-1">
+                                            <input type="number" min="1" placeholder="ขนาดพื้นที่ (ตร.ม.)" class="roof-input w-full px-4 py-2 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors shadow-sm">
+                                        </div>
+                                        <button type="button" class="w-10 h-10 rounded-xl text-gray-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/30 transition-colors shrink-0" disabled>
+                                            <i class="fa-solid fa-lock"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <button type="button" onclick="addRoof()" class="text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 dark:bg-blue-900/50 dark:hover:bg-blue-800 dark:text-blue-300 px-3 py-1.5 rounded-lg transition-colors font-medium mt-2">
+                                    <i class="fa-solid fa-plus"></i> เพิ่มหลังคา (อาคารอื่นในมิเตอร์เดียวกัน)
+                                </button>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="w-full bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white font-bold text-lg py-4 px-8 rounded-2xl shadow-lg shadow-primary-500/30 transform transition-all hover:-translate-y-1 focus:outline-none focus:ring-4 focus:ring-primary-300 dark:focus:ring-primary-800 flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> วิเคราะห์และประเมินผล
+                        </button>
+                    </form>
+
+                    <!-- Explanation Section -->
+                    <div class="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                        <button type="button" onclick="document.getElementById('calcExplanation').classList.toggle('hidden')" class="w-full p-4 flex justify-between items-center text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 font-medium transition-colors focus:outline-none">
+                            <span class="flex items-center gap-2"><i class="fa-solid fa-circle-info"></i> ระบบคำนวณตัวเลขเหล่านี้อย่างไร?</span>
+                            <i class="fa-solid fa-chevron-down text-sm"></i>
+                        </button>
+                        <div id="calcExplanation" class="hidden p-6 pt-0 text-sm text-gray-600 dark:text-gray-400 space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                    <h4 class="font-bold text-primary-600 dark:text-primary-400 mb-2">ขั้นที่ 1: หาปริมาณไฟที่ใช้ตอนกลางวัน</h4>
+                                    <p>ระบบนำค่าไฟฟ้าเฉลี่ย หารด้วยค่าไฟฐาน 4.5 บาท/หน่วย เพื่อหาจำนวนหน่วยต่อวัน จากนั้นคูณสัดส่วนการใช้ไฟกลางวัน (เช่น บ้าน 50%, ออฟฟิศ 75%)</p>
+                                </div>
+                                <div class="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                    <h4 class="font-bold text-primary-600 dark:text-primary-400 mb-2">ขั้นที่ 2: แปลงเป็นขนาดแผง (kWp)</h4>
+                                    <p>นำปริมาณไฟกลางวันที่ต้องการ หารด้วยจำนวนชั่วโมงแดดเฉลี่ยของไทย (ประมาณ 4 ชั่วโมง) แล้วปรับให้เข้ากับขนาดมาตรฐานที่มีในตลาด (3, 5, 10 kWp)</p>
+                                </div>
+                                <div class="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                    <h4 class="font-bold text-primary-600 dark:text-primary-400 mb-2">ขั้นที่ 3: ประมาณการงบประมาณ</h4>
+                                    <p>อ้างอิงจากราคาตลาดเฉลี่ย 30,000 บาท ต่อ 1 kWp โดยแบ่งเป็น: <br>• แผงโซล่าเซลล์ 40% <br>• อินเวอร์เตอร์ 25% <br>• อุปกรณ์/ค่าติดตั้ง 35%</p>
+                                </div>
+                                <div class="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                                    <h4 class="font-bold text-primary-600 dark:text-primary-400 mb-2">ขั้นที่ 4: คำนวณจุดคุ้มทุน (Payback)</h4>
+                                    <p>งบประมาณรวม ÷ (จำนวนเงินที่ประหยัดได้ต่อเดือน × 12) = จำนวนปีที่คืนทุน</p>
+                                </div>
+                                <div class="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm md:col-span-2">
+                                    <h4 class="font-bold text-primary-600 dark:text-primary-400 mb-2">ขั้นที่ 5: ข้อจำกัดพื้นที่หลังคา</h4>
+                                    <p>แผงโซล่าเซลล์ 1 kWp ใช้พื้นที่ติดตั้งประมาณ 6 ตารางเมตร หากพื้นที่ที่คุณระบุไม่เพียงพอ ระบบจะทำการลดขนาดแผงที่แนะนำลงอัตโนมัติเพื่อให้สอดคล้องกับความเป็นจริง</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </motion>
+
+            <div id="tab-history" class="mt-8 max-w-6xl mx-auto">
+                <div class="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-primary-100 dark:border-gray-700 overflow-hidden">
+                    <div class="p-6 border-b border-primary-100 dark:border-gray-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gray-50/50 dark:bg-gray-800/50">
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-800 dark:text-white">ประวัติการประเมิน</h3>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">เก็บในเบราว์เซอร์ของคุณ (localStorage)</p>
+                        </div>
+                        <div class="relative w-full sm:w-64">
+                            <input type="text" id="historySearchInput" placeholder="ค้นหาสถานที่..." autocomplete="off" class="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none">
+                            <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto p-4">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="text-gray-500 dark:text-gray-400 text-sm border-b-2 border-primary-100 dark:border-gray-700">
+                                    <th class="pb-3 px-4 font-semibold">วันที่</th>
+                                    <th class="pb-3 px-4 font-semibold">สถานที่</th>
+                                    <th class="pb-3 px-4 font-semibold">ค่าไฟเฉลี่ย</th>
+                                    <th class="pb-3 px-4 font-semibold">ขนาดที่แนะนำ</th>
+                                    <th class="pb-3 px-4 font-semibold">ประหยัดได้/เดือน</th>
+                                    <th class="pb-3 px-4 font-semibold text-center">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historyTableBody" class="text-gray-700 dark:text-gray-300 text-sm divide-y divide-gray-100 dark:divide-gray-700/50"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+  </main>
+  <script src="chunks/c7-solar-estimator.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      if (typeof updateHistoryTable === 'function') updateHistoryTable();
+      var form = document.getElementById('calcForm');
+      if (form && !form._bound) {
+        form._bound = true;
+        form.addEventListener('submit', function (e) { e.preventDefault(); simulateCalculation(); });
+      }
+    });
+  </script>
+</body>
+</html>

@@ -64,11 +64,30 @@ let modalChartInstance = null;
 let fpMonth = null;
 let currentModalLoc = '';
 
+function findCustomerByLocation_(loc) {
+  var t = String(loc || '').trim().toLowerCase();
+  if (!t) return null;
+  return (state.customers || []).find(function (c) {
+    return c.location && String(c.location).trim().toLowerCase() === t;
+  }) || null;
+}
+
+function resolveRecordCustomerId_(location, explicitId) {
+  if (explicitId) return String(explicitId);
+  var c = findCustomerByLocation_(location);
+  return c ? String(c.id) : '';
+}
+
 function getRecordsForView() {
   if (state.role === 'customer' && state.currentCustomer) {
     var loc = (state.currentCustomer.location || '').trim();
-    if (!loc) return [];
-    return state.records.filter(function (r) { return r.location === loc; });
+    var cid = String(state.currentCustomer.id || '');
+    if (loc) {
+      return state.records.filter(function (r) {
+        return r.location === loc || (cid && String(r.customerId || '') === cid);
+      });
+    }
+    return state.records.filter(function (r) { return cid && String(r.customerId || '') === cid; });
   }
   return state.records;
 }
@@ -88,6 +107,7 @@ async function applyBackendPayload_(data) {
   if (Array.isArray(data.records)) {
     state.records = data.records.map(function (raw) { return calculateFinancials(raw); });
   }
+  if (typeof invalidateLocationCache_ === 'function') invalidateLocationCache_();
   return true;
 }
 

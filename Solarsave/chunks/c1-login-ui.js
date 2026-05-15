@@ -144,22 +144,21 @@ function setupUIByRole() {
   document.getElementById('nav-calculator').style.display = state.role === 'customer' ? 'none' : 'flex';
   document.getElementById('nav-customers').style.display = state.role === 'customer' ? 'none' : 'flex';
   document.getElementById('nav-settings').style.display = state.role === 'admin' ? 'flex' : 'none';
+  const billWrap = document.getElementById('billCustomerWrap');
+  if (billWrap) billWrap.classList.toggle('hidden', state.role === 'customer');
+  if (state.role !== 'customer' && typeof refreshBillCustomerOptions_ === 'function') refreshBillCustomerOptions_();
 
   document.getElementById('loginView').style.display = 'none';
   document.getElementById('appView').classList.remove('hidden');
 
-  if (state.role === 'customer' && state.currentCustomer) {
-    const loc = (state.currentCustomer.location || '').trim();
-    if (!loc) {
-      showToast('บัญชีของคุณยังไม่ผูกสถานที่ — ติดต่อเจ้าหน้าที่การไฟฟ้า');
-    }
-  }
-
-  updateLocationFilterOptions();
-  updateDashboardCards();
-  renderTable();
-  renderCustomerTab();
-  switchTab('dashboard');
+  scheduleUiRefresh_(function () {
+    if (typeof refreshLocationDatalists_ === 'function') refreshLocationDatalists_();
+    updateLocationFilterOptions();
+    updateDashboardCards();
+    renderTable();
+    renderCustomerTab();
+    switchTab('dashboard');
+  });
 }
 
 function handleLogout() {

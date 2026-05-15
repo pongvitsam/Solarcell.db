@@ -49,6 +49,7 @@ function initDashboardChart(recordsToDisplay, filterLoc) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      animation: false,
       interaction: { mode: 'index', intersect: false },
       scales: {
         x: { stacked: true, ticks: { color: textColor, font: { family: 'Prompt' } }, grid: { display: false } },
@@ -180,6 +181,7 @@ function renderModalChart(locRecords) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      animation: false,
       interaction: { mode: 'index', intersect: false },
       scales: {
         x: { stacked: true, ticks: { color: textColor, font: { family: 'Prompt' } }, grid: { display: false } },
@@ -255,9 +257,18 @@ function initAppFormsAndTables_() {
       defaultDate: new Date()
     });
   }
+  if (typeof bindLocationAutocomplete_ === 'function') bindLocationAutocomplete_();
+  if (typeof refreshLocationDatalists_ === 'function') refreshLocationDatalists_();
+  if (typeof refreshBillCustomerOptions_ === 'function') refreshBillCustomerOptions_();
+  const locInput = document.getElementById('location');
+  if (locInput && !locInput._custSyncBound) {
+    locInput._custSyncBound = true;
+    locInput.addEventListener('change', syncBillCustomerFromLocation_);
+    locInput.addEventListener('blur', syncBillCustomerFromLocation_);
+  }
   updateLocationFilterOptions();
   renderTable();
-  updateDashboardCards();
+  scheduleUiRefresh_(function () { updateDashboardCards(); });
   loadSettingsToForm();
   resetForm();
   renderStaffTable();

@@ -1,8 +1,31 @@
+function refreshBillCustomerOptions_() {
+  const sel = document.getElementById('billCustomerId');
+  if (!sel) return;
+  const cur = sel.value;
+  let html = '<option value="">— อัตโนมัติจากชื่อสถานที่ —</option>';
+  (state.customers || []).forEach(function (c) {
+    const label = (c.displayName || c.login) + (c.location ? ' — ' + c.location : ' (ไม่มีสถานที่ในระบบ)');
+    html += '<option value="' + String(c.id).replace(/"/g, '&quot;') + '">' + label.replace(/</g, '&lt;') + '</option>';
+  });
+  sel.innerHTML = html;
+  if (cur) sel.value = cur;
+}
+
+function syncBillCustomerFromLocation_() {
+  const sel = document.getElementById('billCustomerId');
+  if (!sel || state.role === 'customer') return;
+  const c = findCustomerByLocation_(document.getElementById('location').value);
+  sel.value = c ? String(c.id) : '';
+}
+
 async function handleCalculate(e) {
   e.preventDefault();
+  const billCustEl = document.getElementById('billCustomerId');
+  const explicitCust = billCustEl ? billCustEl.value : '';
   const raw = {
     id: document.getElementById('editId').value || Date.now().toString(),
     location: document.getElementById('location').value,
+    customerId: resolveRecordCustomerId_(document.getElementById('location').value, explicitCust),
     month: document.getElementById('billMonth').value,
     phase: document.getElementById('phaseType').value,
     inputMode: document.querySelector('input[name="inputMode"]:checked').value,
@@ -98,6 +121,8 @@ async function handleCalculate(e) {
     }
     state.records.sort(function (a, b) { return b.month.localeCompare(a.month); });
     await backendSaveRecord(rec);
+    if (typeof invalidateLocationCache_ === 'function') invalidateLocationCache_();
+    if (typeof refreshLocationDatalists_ === 'function') refreshLocationDatalists_();
     updateLocationFilterOptions();
     updateDashboardCards();
     renderTable();
@@ -111,6 +136,8 @@ function editRecord(id) {
   if (!r) return;
   document.getElementById('editId').value = r.id;
   document.getElementById('location').value = r.location;
+  const billCust = document.getElementById('billCustomerId');
+  if (billCust) billCust.value = r.customerId || '';
   document.getElementById('phaseType').value = r.phase;
 
   if (fpMonth) { fpMonth.setDate(r.month); } else { document.getElementById('billMonth').value = r.month; }
@@ -188,6 +215,8 @@ async function deleteRecord(id) {
 function resetForm() {
   document.getElementById('calcForm').reset();
   document.getElementById('editId').value = '';
+  const billCust = document.getElementById('billCustomerId');
+  if (billCust) billCust.value = '';
   if (fpMonth) fpMonth.setDate(new Date());
   document.getElementById('baseRate').value = state.settings.rateNormal;
   document.getElementById('ratePeak').value = state.settings.ratePeak || 5.7982;
