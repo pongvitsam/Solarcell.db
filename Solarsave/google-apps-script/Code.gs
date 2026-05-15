@@ -10,6 +10,30 @@
  */
 var SPREADSHEET_ID = '1FF43MELkRFwvul3-hUUCE4VA0YZ4wl_4jkim2eU2uIk';
 
+/** คอลัมน์ชีต Records — ข้อมูลดิบสำหรับนำไปใช้ต่อ (แก้ไขแถวเดิมตาม id) */
+var RECORD_HEADERS = [
+  'id',
+  'customerId',
+  'location',
+  'month',
+  'phase',
+  'inputMode',
+  'rateNormal',
+  'ratePeak',
+  'rateOffPeak',
+  'rateHoliday',
+  'ft',
+  'serviceFee',
+  'discount',
+  'gridKwh',
+  'solarKwh',
+  'gridDetailJson',
+  'solarDetailJson',
+  'touGridJson',
+  'touSolarJson',
+  'updatedAt'
+];
+
 function doGet(e) {
   return handleRequest_(e && e.parameter ? e.parameter : {});
 }
@@ -76,7 +100,9 @@ function ensureSheets_() {
   sh = ss.getSheetByName('Records');
   if (!sh) {
     sh = ss.insertSheet('Records');
-    sh.getRange(1, 1, 1, 2).setValues([['id', 'json']]);
+    initRecordsSheet_(sh);
+  } else {
+    migrateRecordsSheetIfNeeded_(ss);
   }
 }
 
@@ -122,8 +148,54 @@ function readStaff_(ss) {
   return out;
 }
 
-function readRecords_(ss) {
+function initRecordsSheet_(sh) {
+  sh.clear();
+  sh.getRange(1, 1, 1, RECORD_HEADERS.length).setValues([RECORD_HEADERS]);
+  formatRecordsSheet_(sh);
+}
+
+function formatRecordsSheet_(sh) {
+  var n = RECORD_HEADERS.length;
+  sh.setFrozenRows(1);
+  var header = sh.getRange(1, 1, 1, n);
+  header.setFontWeight('bold');
+  header.setBackground('#ede9fe');
+  header.setFontColor('#4c1d95');
+  header.setWrap(true);
+  sh.setColumnWidths(1, n, 110);
+  sh.setColumnWidth(1, 140);
+  sh.setColumnWidth(3, 180);
+  sh.setColumnWidth(4, 90);
+  for (var c = 16; c <= 19; c++) {
+    sh.setColumnWidth(c, 200);
+  }
+}
+
+function migrateRecordsSheetIfNeeded_(ss) {
   var sh = ss.getSheetByName('Records');
+  if (!sh) return;
+  var lastCol = Math.max(sh.getLastColumn(), 1);
+  var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  if (String(headers[0]) === 'id' && String(headers[1]) === 'customerId') {
+    if (lastCol < RECORD_HEADERS.length) {
+      sh.getRange(1, 1, 1, RECORD_HEADERS.length).setValues([RECORD_HEADERS]);
+    }
+    formatRecordsSheet_(sh);
+    return;
+  }
+  if (String(headers[1]) !== 'json') {
+    sh.getRange(1, 1, 1, RECORD_HEADERS.length).setValues([RECORD_HEADERS]);
+    formatRecordsSheet_(sh);
+    return;
+  }
+  var legacy = readRecordsLegacyJson_(sh);
+  initRecordsSheet_(sh);
+  if (legacy.length === 0) return;
+  var rows = legacy.map(function (rec) { return recordToRow_(rec); });
+  sh.getRange(2, 1, rows.length, RECORD_HEADERS.length).setValues(rows);
+}
+
+function readRecordsLegacyJson_(sh) {
   var data = sh.getDataRange().getValues();
   var out = [];
   for (var r = 1; r < data.length; r++) {
@@ -134,9 +206,94 @@ function readRecords_(ss) {
       var obj = JSON.parse(String(j));
       if (!obj.id) obj.id = String(id);
       out.push(obj);
-    } catch (e) {
-      // skip bad row
-    }
+    } catch (e) { /* skip */ }
+  }
+  return out;
+}
+
+function numCell_(v) {
+  var n = Number(v);
+  return isNaN(n) ? 0 : n;
+}
+
+function parseJsonCell_(v) {
+  if (v === null || v === undefined || v === '') return {};
+  try {
+    var o = JSON.parse(String(v));
+    return o && typeof o === 'object' ? o : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function recordToRow_(rec) {
+  var s = stripForStorage_(rec);
+  return [
+    String(s.id),
+    String(s.customerId || ''),
+    String(s.location || ''),
+    String(s.month || ''),
+    String(s.phase || ''),
+    String(s.inputMode || 'unit'),
+    numCell_(s.rateNormal),
+    numCell_(s.ratePeak),
+    numCell_(s.rateOffPeak),
+    numCell_(s.rateHoliday),
+    numCell_(s.ft),
+    numCell_(s.serviceFee),
+    numCell_(s.discount),
+    numCell_(s.grid),
+    numCell_(s.solar),
+    JSON.stringify(s.gridData || {}),
+    JSON.stringify(s.solarData || {}),
+    JSON.stringify(s.touGrid || {}),
+    JSON.stringify(s.touSolar || {}),
+    String(s.updatedAt || new Date().toISOString())
+  ];
+}
+
+function rowToRecord_(row) {
+  if (!row || !row[0]) return null;
+  return {
+    id: String(row[0]),
+    customerId: String(row[1] || ''),
+    location: String(row[2] || ''),
+    month: String(row[3] || ''),
+    phase: String(row[4] || '1'),
+    inputMode: String(row[5] || 'unit'),
+    rateNormal: numCell_(row[6]),
+    ratePeak: numCell_(row[7]),
+    rateOffPeak: numCell_(row[8]),
+    rateHoliday: numCell_(row[9]),
+    ft: numCell_(row[10]),
+    serviceFee: numCell_(row[11]),
+    discount: numCell_(row[12]),
+    grid: numCell_(row[13]),
+    solar: numCell_(row[14]),
+    gridData: parseJsonCell_(row[15]),
+    solarData: parseJsonCell_(row[16]),
+    touGrid: parseJsonCell_(row[17]),
+    touSolar: parseJsonCell_(row[18]),
+    updatedAt: String(row[19] || '')
+  };
+}
+
+function findRecordRowIndex_(data, id) {
+  for (var r = 1; r < data.length; r++) {
+    if (String(data[r][0]) === String(id)) return r + 1;
+  }
+  return -1;
+}
+
+function readRecords_(ss) {
+  migrateRecordsSheetIfNeeded_(ss);
+  var sh = ss.getSheetByName('Records');
+  var data = sh.getDataRange().getValues();
+  if (data.length < 2) return [];
+  var out = [];
+  for (var r = 1; r < data.length; r++) {
+    var rec = rowToRecord_(data[r]);
+    if (rec) out.push(rec);
   }
   return out;
 }
@@ -265,20 +422,16 @@ function loginCustomer_(login, password) {
 function saveRecord_(record) {
   if (!record || !record.id) return { ok: false, error: 'Missing record.id' };
   var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  migrateRecordsSheetIfNeeded_(ss);
   var sh = ss.getSheetByName('Records');
   var data = sh.getDataRange().getValues();
-  var rowIndex = -1;
-  for (var r = 1; r < data.length; r++) {
-    if (String(data[r][0]) === String(record.id)) {
-      rowIndex = r + 1;
-      break;
-    }
-  }
-  var json = JSON.stringify(stripForStorage_(record));
+  var rowIndex = findRecordRowIndex_(data, record.id);
+  var row = recordToRow_(record);
+  row[19] = new Date().toISOString();
   if (rowIndex === -1) {
-    sh.appendRow([String(record.id), json]);
+    sh.appendRow(row);
   } else {
-    sh.getRange(rowIndex, 1, 1, 2).setValues([[String(record.id), json]]);
+    sh.getRange(rowIndex, 1, 1, RECORD_HEADERS.length).setValues([row]);
   }
   return { ok: true };
 }
@@ -286,13 +439,12 @@ function saveRecord_(record) {
 function deleteRecord_(id) {
   if (id === undefined || id === null || id === '') return { ok: false, error: 'Missing id' };
   var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  migrateRecordsSheetIfNeeded_(ss);
   var sh = ss.getSheetByName('Records');
   var data = sh.getDataRange().getValues();
-  for (var r = 1; r < data.length; r++) {
-    if (String(data[r][0]) === String(id)) {
-      sh.deleteRow(r + 1);
-      return { ok: true };
-    }
+  var rowIndex = findRecordRowIndex_(data, id);
+  if (rowIndex !== -1) {
+    sh.deleteRow(rowIndex);
   }
   return { ok: true };
 }

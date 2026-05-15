@@ -127,6 +127,17 @@
             body.printing-modal #summaryModalContent .print-cards-grid .text-2xl { font-size: 9pt !important; }
             body.printing-modal canvas { max-height: 95px !important; }
         }
+
+        @keyframes solarsave-spin { to { transform: rotate(360deg); } }
+        .loading-spinner {
+            width: 3rem;
+            height: 3rem;
+            border-radius: 9999px;
+            border: 4px solid rgba(139, 92, 246, 0.25);
+            border-top-color: #7c3aed;
+            animation: solarsave-spin 0.75s linear infinite;
+        }
+        body.loading-active { overflow: hidden; }
     </style>
 </head>
 <body class="text-gray-800 antialiased min-h-screen flex flex-col relative">
@@ -636,6 +647,15 @@
                 </div>
             </div>
             <div class="hidden print:block mt-8 pt-4 border-t border-gray-300 text-center text-sm text-gray-500">เอกสารสรุปความประหยัดพลังงาน - สร้างโดยระบบ SolarSave Management System</div>
+        </div>
+    </div>
+
+
+    <div id="loadingOverlay" class="hidden fixed inset-0 z-[100] items-center justify-center bg-gray-900/55 backdrop-blur-sm" aria-live="polite" aria-busy="true">
+        <div class="glass-panel px-8 py-7 rounded-2xl flex flex-col items-center shadow-2xl max-w-sm mx-4 text-center border border-white/40">
+            <div class="loading-spinner mb-4" role="status" aria-hidden="true"></div>
+            <p id="loadingOverlayMsg" class="font-semibold text-gray-800 dark:text-white">กำลังโหลด...</p>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">กรุณารอสักครู่</p>
         </div>
     </div>
 

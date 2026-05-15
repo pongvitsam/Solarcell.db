@@ -1,4 +1,34 @@
 /* --- LOGIN & ROLE UI --- */
+var _loadingOverlayDepth_ = 0;
+
+function showLoadingOverlay_(message) {
+  var el = document.getElementById('loadingOverlay');
+  var msg = document.getElementById('loadingOverlayMsg');
+  if (!el) return;
+  _loadingOverlayDepth_++;
+  if (msg && message) msg.textContent = message;
+  el.classList.remove('hidden');
+  el.classList.add('flex');
+  el.setAttribute('aria-busy', 'true');
+  document.body.classList.add('loading-active');
+}
+
+function setLoadingOverlayMessage_(message) {
+  var msg = document.getElementById('loadingOverlayMsg');
+  if (msg && message) msg.textContent = message;
+}
+
+function hideLoadingOverlay_() {
+  var el = document.getElementById('loadingOverlay');
+  if (!el) return;
+  _loadingOverlayDepth_ = Math.max(0, _loadingOverlayDepth_ - 1);
+  if (_loadingOverlayDepth_ > 0) return;
+  el.classList.add('hidden');
+  el.classList.remove('flex');
+  el.setAttribute('aria-busy', 'false');
+  document.body.classList.remove('loading-active');
+}
+
 function switchLoginState(targetState) {
   const sel = document.getElementById('roleSelectState');
   const cust = document.getElementById('customerLoginState');
@@ -74,26 +104,32 @@ function mergeCustomerIntoState_(customer) {
   else state.customers.push(row);
 }
 
-async function enterCustomerSession_(customer, successMessage) {
-  state.isLoggedIn = true;
-  state.role = 'customer';
-  state.currentCustomer = customer;
-  state.user = customer.displayName || customer.login;
-  mergeCustomerIntoState_(customer);
-  persistSession_();
+async function enterCustomerSession_(customer, successMessage, opts) {
+  var manageLoading = !(opts && opts.skipLoading);
+  if (manageLoading) showLoadingOverlay_('กำลังโหลดข้อมูล...');
+  try {
+    state.isLoggedIn = true;
+    state.role = 'customer';
+    state.currentCustomer = customer;
+    state.user = customer.displayName || customer.login;
+    mergeCustomerIntoState_(customer);
+    persistSession_();
 
-  showAppShell_();
-  setupUIByRole();
+    showAppShell_();
+    setupUIByRole();
 
-  await loadBackendData();
-  if (state.currentCustomer && state.currentCustomer.id) {
-    const fresh = state.customers.find(function (c) { return String(c.id) === String(state.currentCustomer.id); });
-    if (fresh) state.currentCustomer = fresh;
+    await loadBackendData();
+    if (state.currentCustomer && state.currentCustomer.id) {
+      const fresh = state.customers.find(function (c) { return String(c.id) === String(state.currentCustomer.id); });
+      if (fresh) state.currentCustomer = fresh;
+    }
+    if (typeof recalculateAllRecords === 'function') recalculateAllRecords();
+    refreshCustomerDashboard_();
+
+    if (successMessage) showToast(successMessage);
+  } finally {
+    if (manageLoading) hideLoadingOverlay_();
   }
-  if (typeof recalculateAllRecords === 'function') recalculateAllRecords();
-  refreshCustomerDashboard_();
-
-  if (successMessage) showToast(successMessage);
 }
 
 function refreshCustomerDashboard_() {
@@ -122,14 +158,20 @@ async function handleCustomerLogin(e) {
     return;
   }
   const submitBtn = e.target && e.target.querySelector ? e.target.querySelector('button[type="submit"]') : null;
+  showLoadingOverlay_('กำลังเข้าสู่ระบบ...');
   if (submitBtn) submitBtn.disabled = true;
-  const r = await window.__SOLARSAVE_GAS__.loginCustomer(login, password);
-  if (submitBtn) submitBtn.disabled = false;
-  if (r.ok && r.customer) {
-    await enterCustomerSession_(r.customer, 'เข้าสู่ระบบสำเร็จ');
-    return;
+  try {
+    const r = await window.__SOLARSAVE_GAS__.loginCustomer(login, password);
+    if (r.ok && r.customer) {
+      setLoadingOverlayMessage_('กำลังโหลดข้อมูล...');
+      await enterCustomerSession_(r.customer, 'เข้าสู่ระบบสำเร็จ', { skipLoading: true });
+      return;
+    }
+    showToast(r.error || 'เข้าสู่ระบบไม่สำเร็จ');
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+    hideLoadingOverlay_();
   }
-  showToast(r.error || 'เข้าสู่ระบบไม่สำเร็จ');
 }
 
 async function handleCustomerRegister(e) {
@@ -147,19 +189,25 @@ async function handleCustomerRegister(e) {
     return;
   }
   const submitBtn = e.target && e.target.querySelector ? e.target.querySelector('button[type="submit"]') : null;
+  showLoadingOverlay_('กำลังสมัครสมาชิก...');
   if (submitBtn) submitBtn.disabled = true;
-  const r = await window.__SOLARSAVE_GAS__.registerCustomer({
-    login: login,
-    password: password,
-    displayName: displayName || login,
-    location: location
-  });
-  if (submitBtn) submitBtn.disabled = false;
-  if (r.ok && r.customer) {
-    await enterCustomerSession_(r.customer, 'สมัครสมาชิกสำเร็จ — ยินดีต้อนรับ');
-    return;
+  try {
+    const r = await window.__SOLARSAVE_GAS__.registerCustomer({
+      login: login,
+      password: password,
+      displayName: displayName || login,
+      location: location
+    });
+    if (r.ok && r.customer) {
+      setLoadingOverlayMessage_('กำลังเข้าสู่ระบบ...');
+      await enterCustomerSession_(r.customer, 'สมัครสมาชิกสำเร็จ — ยินดีต้อนรับ', { skipLoading: true });
+      return;
+    }
+    showToast(r.error || 'สมัครสมาชิกไม่สำเร็จ');
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+    hideLoadingOverlay_();
   }
-  showToast(r.error || 'สมัครสมาชิกไม่สำเร็จ');
 }
 
 function handleCustomerForgotPassword(e) {
@@ -175,21 +223,30 @@ async function handleLogin(e) {
     showToast('กรุณากรอก Username และ Password');
     return;
   }
-  await loadBackendData();
-  const foundUser = state.staffAccounts.find(function (acc) {
-    return acc.username === u && acc.password === p;
-  });
-  if (foundUser) {
-    state.isLoggedIn = true;
-    state.user = foundUser.username;
-    state.role = foundUser.role;
-    state.currentCustomer = null;
-    persistSession_();
-    showAppShell_();
-    setupUIByRole();
-    showToast('เข้าสู่ระบบสำเร็จ (' + foundUser.role.toUpperCase() + ')');
-  } else {
-    showToast('Username หรือ Password ไม่ถูกต้อง');
+  const submitBtn = e.target && e.target.querySelector ? e.target.querySelector('button[type="submit"]') : null;
+  showLoadingOverlay_('กำลังเข้าสู่ระบบ...');
+  if (submitBtn) submitBtn.disabled = true;
+  try {
+    setLoadingOverlayMessage_('กำลังโหลดข้อมูลจากระบบ...');
+    await loadBackendData();
+    const foundUser = state.staffAccounts.find(function (acc) {
+      return acc.username === u && acc.password === p;
+    });
+    if (foundUser) {
+      state.isLoggedIn = true;
+      state.user = foundUser.username;
+      state.role = foundUser.role;
+      state.currentCustomer = null;
+      persistSession_();
+      showAppShell_();
+      setupUIByRole();
+      showToast('เข้าสู่ระบบสำเร็จ (' + foundUser.role.toUpperCase() + ')');
+    } else {
+      showToast('Username หรือ Password ไม่ถูกต้อง');
+    }
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+    hideLoadingOverlay_();
   }
 }
 
@@ -250,7 +307,13 @@ function handleLogout() {
 async function restoreSessionIfAny_() {
   const s = window.__SOLARSAVE_SESSION__.load();
   if (!s || !s.role) return false;
-  await loadBackendData();
+  showLoadingOverlay_('กำลังโหลด session...');
+  try {
+    await loadBackendData();
+  } catch (err) {
+    hideLoadingOverlay_();
+    return false;
+  }
   if (s.role === 'customer' && s.currentCustomer) {
     const c = state.customers.find(function (x) { return x.id === s.currentCustomer.id; });
     state.currentCustomer = c || s.currentCustomer;
@@ -258,18 +321,24 @@ async function restoreSessionIfAny_() {
     state.role = 'customer';
     state.user = state.currentCustomer.displayName || state.currentCustomer.login;
     setupUIByRole();
+    hideLoadingOverlay_();
     return true;
   }
   if (s.role === 'admin' || s.role === 'staff') {
     const acc = state.staffAccounts.find(function (x) { return x.username === s.user; });
-    if (!acc) return false;
+    if (!acc) {
+      hideLoadingOverlay_();
+      return false;
+    }
     state.isLoggedIn = true;
     state.role = acc.role;
     state.user = acc.username;
     state.currentCustomer = null;
     setupUIByRole();
+    hideLoadingOverlay_();
     return true;
   }
+  hideLoadingOverlay_();
   return false;
 }
 
